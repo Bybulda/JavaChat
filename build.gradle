@@ -1,23 +1,50 @@
 plugins {
     id 'java'
+    id 'org.springframework.boot' version '3.2.5'
+    id 'io.spring.dependency-management' version '1.1.4'
+    id 'com.vaadin' version '24.3.10'
 }
 
-group = 'org.example'
+group = 'application'
 version = '1.0-SNAPSHOT'
+java {
+    sourceCompatibility = '17'
+}
 
 repositories {
     mavenCentral()
 }
 
+ext {
+    set('vaadinVersion', "24.3.10")
+}
+
 dependencies {
     //spring boot
+    // https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-web
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'com.vaadin:vaadin-spring-boot-starter'
+    compileOnly 'org.projectlombok:lombok'
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    annotationProcessor 'org.projectlombok:lombok'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
 
-    //spring validation
-    implementation 'org.springframework.boot:spring-boot-starter-validation:3.0.5'
+    // configuration
+    implementation 'com.typesafe:config:1.4.2'
 
-    //spring jpa
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa:3.0.5'
+//    // redis
+//    implementation group: 'org.springframework.boot', name: 'spring-boot-starter-data-redis', version: '3.2.5'
+
+    // kafka
+    implementation 'org.apache.kafka:kafka-clients:3.4.0'
+
+
+
+//    //spring validation
+//    implementation 'org.springframework.boot:spring-boot-starter-validation:3.0.5'
+//
+//    //spring jpa
+//    implementation 'org.springframework.boot:spring-boot-starter-data-jpa:3.0.5'
 
     // logging
     implementation 'ch.qos.logback:logback-classic:1.4.5'
@@ -35,9 +62,18 @@ dependencies {
     implementation 'com.vaadin:vaadin:24.4.4'
 
     // json
-    implementation 'com.fasterxml.jackson.core:jackson-core:2.14.2'
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.16.1'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
+
+    // test
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "com.vaadin:vaadin-bom:${vaadinVersion}"
+    }
 }
 
 test {

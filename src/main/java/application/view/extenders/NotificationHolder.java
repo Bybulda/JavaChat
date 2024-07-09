@@ -1,0 +1,36 @@
+package application.view.extenders;
+
+import com.vaadin.flow.component.Text;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.cookieconsent.CookieConsent;
+import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.Notification.Position;
+import com.vaadin.flow.component.notification.NotificationVariant;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+
+public interface NotificationHolder {
+     default void openErrorNotification(String errorMessage){
+        Notification errorNotification = new Notification();
+        errorNotification.setPosition(Position.BOTTOM_END);
+
+        errorNotification.setDuration(2500);
+        errorNotification.addThemeVariants(NotificationVariant.LUMO_ERROR);
+
+        Div text = new Div(new Text(errorMessage));
+
+        Button closeButton = new Button(new Icon("lumo", "cross"));
+        closeButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
+        closeButton.setAriaLabel("Close");
+        closeButton.addClickListener(event -> errorNotification.close());
+
+        HorizontalLayout layout = new HorizontalLayout(text, closeButton);
+        layout.setAlignItems(FlexComponent.Alignment.CENTER);
+
+        errorNotification.add(layout);
+        errorNotification.open();
+    }
+}
