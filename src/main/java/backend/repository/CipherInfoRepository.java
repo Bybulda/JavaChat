@@ -1,0 +1,7 @@
+package backend.repository;
+
+import backend.model.CipherInfo;
+import org.springframework.data.repository.CrudRepository;
+
+public interface CipherInfoRepository extends CrudRepository<CipherInfo, Long> {
+}
