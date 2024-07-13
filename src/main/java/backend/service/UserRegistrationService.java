@@ -1,7 +1,6 @@
 package backend.service;
 
 import backend.model.UserInfo;
-import backend.repository.CipherInfoRepository;
 import backend.repository.UserInfoRepository;
 import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.beans.factory.annotation.Autowired;

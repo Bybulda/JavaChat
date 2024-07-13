@@ -13,6 +13,10 @@ public class RoomsManageService {
     private RoomsInfoRepository roomsInfoRepository;
 
     public List<RoomsInfo> getRoomsInfoForUser(Long userId){
-        return List.of(new RoomsInfo());
+        return roomsInfoRepository.findAllByLeftUserOrRightUser(userId, userId);
+    }
+
+    public boolean checkRoomInfoForTwoUsers(Long rightUserId, Long leftUserId){
+        return roomsInfoRepository.existsByLeftUserAndRightUserOrRightUserAndLeftUser(leftUserId, rightUserId, rightUserId, leftUserId);
     }
 }
