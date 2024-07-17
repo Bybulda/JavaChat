@@ -14,6 +14,7 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.virtuallist.VirtualList;
+import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.BeforeEvent;
 import com.vaadin.flow.router.HasUrlParameter;
 import com.vaadin.flow.router.PageTitle;
@@ -59,6 +60,21 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
         VerticalLayout channelsLayout = new VerticalLayout();
         channelsLayout.setWidth("50%");
         channelsList = new VirtualList<>();
+        channelsList.setRenderer(new ComponentRenderer<>(item -> {
+            HorizontalLayout itemLayout = new HorizontalLayout();
+            itemLayout.setWidthFull();
+            itemLayout.setAlignItems(Alignment.CENTER);
+            Span span = new Span();
+            Button options = new Button(new Icon(VaadinIcon.OPTIONS), buttonClickEvent -> {});
+            span.setText(item);
+
+            ContextMenu menu = new ContextMenu(options);
+            menu.setOpenOnClick(true);
+            menu.addItem("Delete for me");
+            menu.addItem("Delete for all");
+            itemLayout.add(span, options);
+            return itemLayout;
+        }));
         channelsList.setHeightFull();
         channelsLayout.add(header, channelModLayout, channelsList);
         channelsLayout.expand(channelsList);
@@ -93,7 +109,7 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
         chatAndButtonPlace.expand(chatPlace);
 
 
-        channelsList.setItems("Hi", "zoro", "Luffy", "duccy", "poncho", "Hi", "zoro", "Luffy", "duccy", "poncho", "Hi", "zoro", "Luffy", "duccy", "poncho", "Hi", "zoro", "Luffy", "duccy", "poncho", "Hi", "zoro", "Luffy", "duccy", "poncho", "Hi", "zoro", "Luffy", "duccy", "poncho", "Hi", "zoro", "Luffy", "duccy", "poncho", "Hi", "zoro", "Luffy", "duccy", "poncho", "Hi", "zoro", "Luffy", "duccy", "poncho", "Hi", "zoro", "Luffy", "duccy", "poncho", "Hi", "zoro", "Luffy", "duccy", "poncho");
+        channelsList.setItems("1", "2", "3", "4", "5", "6", "7", "8", "9");
         add(channelsLayout, chatAndButtonPlace);
 
     }
@@ -105,6 +121,10 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
     }
 
     private void addChannel(String channel) {
+
+    }
+
+    private void refreshChannels(){
 
     }
 
