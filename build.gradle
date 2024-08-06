@@ -19,6 +19,19 @@ dependencies {
     //spring jpa
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa:3.0.5'
 
+    // configuration
+    implementation 'com.typesafe:config:1.4.2'
+
+    // redis
+    implementation group: 'org.springframework.boot', name: 'spring-boot-starter-data-redis', version: '3.2.5'
+
+    // kafka
+    implementation 'org.apache.kafka:kafka-clients:3.4.0'
+
+    // apache-commons
+    implementation group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
+    implementation 'commons-io:commons-io:2.16.1'
+
     // logging
     implementation 'ch.qos.logback:logback-classic:1.4.5'
 
