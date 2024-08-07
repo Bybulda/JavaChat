@@ -17,13 +17,12 @@ public class RoomsInfo {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
-    @Column(unique = true)
-    private long roomId;
+
     private long leftUser;
     private long rightUser;
     private String titleLeft;
     private String titleRight;
-    private long cipherInfo;
+    private long cipherInfoId;
     private byte[] p;
     private byte[] g;
 

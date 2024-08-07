@@ -14,15 +14,15 @@ public class UserRegistrationService {
     private UserInfoRepository userInfoRepository;
 
     public Pair<Boolean, UserInfo> registerUser(String username, String password) {
-        if (userInfoRepository.existsByName(username)) {
-            Optional<UserInfo> foundUser = userInfoRepository.findUserInfoByNameAndPassword(username, password);
+        if (userInfoRepository.existsByUserName(username)) {
+            Optional<UserInfo> foundUser = userInfoRepository.findUserInfoByUserNameAndPassword(username, password);
             return foundUser.map(userInfo -> Pair.of(true, userInfo)).orElseGet(() -> Pair.of(false, new UserInfo()));
         }
-        userInfoRepository.save(UserInfo.builder().name(username).password(password).build());
-        return Pair.of(true, userInfoRepository.findUserInfoByNameAndPassword(username, password).get());
+        userInfoRepository.save(UserInfo.builder().userName(username).password(password).build());
+        return Pair.of(true, userInfoRepository.findUserInfoByUserNameAndPassword(username, password).get());
     }
 
     public Optional<Long> getUserInfoByUsername(String username) {
-        return userInfoRepository.findIdByName(username);
+        return userInfoRepository.findIdByUserName(username);
     }
 }
