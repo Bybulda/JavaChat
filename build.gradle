@@ -35,15 +35,6 @@ dependencies {
     // logging
     implementation 'ch.qos.logback:logback-classic:1.4.5'
 
-    // code generator
-    compileOnly 'org.projectlombok:lombok:1.18.26'
-    annotationProcessor 'org.projectlombok:lombok:1.18.26'
-
-    // databases
-    implementation 'org.postgresql:postgresql:42.5.4'
-    implementation 'com.zaxxer:HikariCP:5.0.1'
-    implementation 'org.jooq:jooq:3.17.8'
-
     //vaadin
     implementation 'com.vaadin:vaadin:24.4.4'
 
