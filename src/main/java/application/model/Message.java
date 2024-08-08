@@ -10,10 +10,10 @@ import lombok.Data;
 public class Message {
     private String username;
     private Long userId;
-    private MessageType type;
+    private Type type;
     private String text;
 
-    private enum MessageType {
+    public enum Type {
         TEXT,
         LINK,
         FILE,

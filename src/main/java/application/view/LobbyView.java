@@ -1,7 +1,9 @@
 package application.view;
 
 import application.model.Channel;
+import application.model.Message;
 import application.view.extenders.NotificationHolder;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.contextmenu.ContextMenu;
 import com.vaadin.flow.component.dependency.CssImport;
@@ -30,7 +32,7 @@ import java.util.Optional;
 @CssImport("./styles/styles.css")
 public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>, NotificationHolder {
     private long id;
-    private final VirtualList<String> channelsList;
+//    private final VirtualList<String> channelsList;
     private final Grid<Channel> channelsGrid;
     private final VerticalLayout chatPlace;
     private final H3 header;
@@ -81,26 +83,26 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
             }
         });
         channelsGrid.setItems(List.of(new Channel(1, 1, 1,"name", "nigga")));
-        channelsList = new VirtualList<>();
-        channelsList.setRenderer(new ComponentRenderer<>(item -> {
-            HorizontalLayout itemLayout = new HorizontalLayout();
-            itemLayout.setWidthFull();
-            itemLayout.setAlignItems(Alignment.CENTER);
-            Span span = new Span();
-            span.setWidthFull();
-            Button options = new Button(new Icon(VaadinIcon.OPTIONS), buttonClickEvent -> {});
-            span.setText(item);
-
-            ContextMenu menu = new ContextMenu(options);
-            menu.setOpenOnClick(true);
-            menu.addItem("Delete for me");
-            menu.addItem("Delete for all");
-            itemLayout.add(span, options);
-            itemLayout.expand(span);
-
-            return itemLayout;
-        }));
-        channelsList.setHeightFull();
+//        channelsList = new VirtualList<>();
+//        channelsList.setRenderer(new ComponentRenderer<>(item -> {
+//            HorizontalLayout itemLayout = new HorizontalLayout();
+//            itemLayout.setWidthFull();
+//            itemLayout.setAlignItems(Alignment.CENTER);
+//            Span span = new Span();
+//            span.setWidthFull();
+//            Button options = new Button(new Icon(VaadinIcon.OPTIONS), buttonClickEvent -> {});
+//            span.setText(item);
+//
+//            ContextMenu menu = new ContextMenu(options);
+//            menu.setOpenOnClick(true);
+//            menu.addItem("Delete for me");
+//            menu.addItem("Delete for all");
+//            itemLayout.add(span, options);
+//            itemLayout.expand(span);
+//
+//            return itemLayout;
+//        }));
+//        channelsList.setHeightFull();
         channelsLayout.add(header, channelModLayout, channelsGrid);
         channelsLayout.expand(channelsGrid);
         channelsLayout.expand(channelModLayout);
@@ -144,7 +146,7 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
         chatAndButtonPlace.expand(chatPlace);
 
 
-        channelsList.setItems("1", "2", "3", "4", "5", "6", "7", "8", "9");
+//        channelsList.setItems("1", "2", "3", "4", "5", "6", "7", "8", "9");
         add(channelsLayout, chatAndButtonPlace);
 
     }
@@ -153,6 +155,10 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
         if (channel == null || channel.isEmpty()) {
             openErrorNotification("Channel name should not be empty");
         }
+    }
+
+    private void createChannel(String channel){
+        
     }
 
     private void addChannel(String channel) {
@@ -164,11 +170,15 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
     }
 
     private void sendMessage(String message) {
-        chatPlace.add(createMessage(message));
+        chatPlace.add(createMessage(message, Message.Type.TEXT));
 
     }
 
-    private Div createMessage(String message) {
+    private void sendMessage(String message, Message.Type type) {
+        chatPlace.add(createMessage(message, type));
+    }
+
+    private Div createMessage(String message, Message.Type type) {
         // div holder
         Div messageDiv = new Div();
         messageDiv.addClassName("message-container");
@@ -178,10 +188,21 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
         Span span = new Span(String.format("Alex [%s]", formattedDateTime));
         span.addClassName("sender-name");
         messageDiv.add(span);
-
-        Paragraph paragraph = new Paragraph(message);
-        paragraph.addClassName("message-text");
-        messageDiv.add(paragraph);
+        Component addToDiv = null;
+        switch (type) {
+            case TEXT:
+                addToDiv = new Paragraph(message);
+                addToDiv.addClassName("message-text");
+                break;
+            case LINK:
+                addToDiv = new Anchor(message);
+                addToDiv.addClassName("message-link");
+                break;
+            case PICTURE:
+                addToDiv = new Image(message, "");
+                addToDiv.addClassName("message-image");
+                break;
+        }
 
         // Context menu creation
         ContextMenu menu = new ContextMenu(messageDiv);
