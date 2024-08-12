@@ -16,7 +16,6 @@ public class Message {
     private enum MessageType {
         TEXT,
         LINK,
-        FILE,
         PICTURE
     }
 }

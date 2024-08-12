@@ -3,8 +3,10 @@ package application.view;
 import application.model.Channel;
 import application.view.extenders.NotificationHolder;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.contextmenu.ContextMenu;
 import com.vaadin.flow.component.dependency.CssImport;
+import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.*;
 import com.vaadin.flow.component.icon.Icon;
@@ -30,7 +32,6 @@ import java.util.Optional;
 @CssImport("./styles/styles.css")
 public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>, NotificationHolder {
     private long id;
-    private final VirtualList<String> channelsList;
     private final Grid<Channel> channelsGrid;
     private final VerticalLayout chatPlace;
     private final H3 header;
@@ -54,7 +55,7 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
         channelModLayout.setWidthFull();
         channelModLayout.setAlignItems(Alignment.END);
         TextField name = new TextField("Channel Name");
-        Button addChanel = new Button("Add Channel", buttonClickEvent -> validateChannelInfo(name.getValue()));
+        Button addChanel = new Button(new Icon(VaadinIcon.PLUS), buttonClickEvent -> validateChannelInfo(name.getValue()));
 //        addChanel.setDisableOnClick(true);
         channelModLayout.add(name, addChanel);
         channelModLayout.expand(name);
@@ -81,26 +82,6 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
             }
         });
         channelsGrid.setItems(List.of(new Channel(1, 1, 1,"name", "nigga")));
-        channelsList = new VirtualList<>();
-        channelsList.setRenderer(new ComponentRenderer<>(item -> {
-            HorizontalLayout itemLayout = new HorizontalLayout();
-            itemLayout.setWidthFull();
-            itemLayout.setAlignItems(Alignment.CENTER);
-            Span span = new Span();
-            span.setWidthFull();
-            Button options = new Button(new Icon(VaadinIcon.OPTIONS), buttonClickEvent -> {});
-            span.setText(item);
-
-            ContextMenu menu = new ContextMenu(options);
-            menu.setOpenOnClick(true);
-            menu.addItem("Delete for me");
-            menu.addItem("Delete for all");
-            itemLayout.add(span, options);
-            itemLayout.expand(span);
-
-            return itemLayout;
-        }));
-        channelsList.setHeightFull();
         channelsLayout.add(header, channelModLayout, channelsGrid);
         channelsLayout.expand(channelsGrid);
         channelsLayout.expand(channelModLayout);
@@ -142,9 +123,6 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
         fieldsButtonsLayout.expand(message);
         chatAndButtonPlace.add(chatPlace, fieldsButtonsLayout);
         chatAndButtonPlace.expand(chatPlace);
-
-
-        channelsList.setItems("1", "2", "3", "4", "5", "6", "7", "8", "9");
         add(channelsLayout, chatAndButtonPlace);
 
     }
@@ -152,10 +130,40 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
     private void validateChannelInfo(String channel) {
         if (channel == null || channel.isEmpty()) {
             openErrorNotification("Channel name should not be empty");
+        } else {
+            addChannel(channel);
         }
     }
 
     private void addChannel(String channel) {
+        Dialog dialog = new Dialog();
+
+        dialog.setHeaderTitle("New chat settings");
+        VerticalLayout dialogLayout = new VerticalLayout();
+        dialogLayout.setAlignItems(Alignment.BASELINE);
+
+        ComboBox<String> padding = new ComboBox<>("Padding", "ISO186");
+        padding.setRequiredIndicatorVisible(true);
+
+        ComboBox<String> cipherMode = new ComboBox<>("Cipher Mode", "CBC", "CFB", "OFB", "OFB/CBC");
+        cipherMode.setRequiredIndicatorVisible(true);
+
+        ComboBox<String> cipher = new ComboBox<>("Cipher Algorithm", "RC5");
+        cipherMode.setRequiredIndicatorVisible(true);
+
+        dialogLayout.add(padding, cipherMode, cipher);
+
+        HorizontalLayout buttonsLayout = new HorizontalLayout();
+        buttonsLayout.setWidthFull();
+        Button cancelButton = new Button("Cancel");
+        cancelButton.addClickListener(click -> {dialog.close();});
+        Button okButton = new Button("Apply settings");
+        okButton.addClickListener(click -> {});
+        buttonsLayout.add(cancelButton, okButton);
+        dialog.add(dialogLayout, buttonsLayout);
+        dialog.open();
+
+
 
     }
 
