@@ -1,9 +1,16 @@
 plugins {
     id 'java'
+    id 'org.springframework.boot' version '3.0.6'
 }
 
+apply plugin: 'io.spring.dependency-management'
 group = 'org.example'
 version = '1.0-SNAPSHOT'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
 
 repositories {
     mavenCentral()
@@ -17,7 +24,12 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation:3.0.5'
 
     //spring jpa
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa:3.0.5'
+    implementation 'org.springframework.data:spring-data-jpa:3.0.5'
+
+    // databases
+    implementation 'org.postgresql:postgresql:42.5.4'
+    implementation 'com.zaxxer:HikariCP:5.0.1'
+    implementation 'org.jooq:jooq:3.17.8'
 
     // configuration
     implementation 'com.typesafe:config:1.4.2'
@@ -32,11 +44,12 @@ dependencies {
     implementation group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
     implementation 'commons-io:commons-io:2.16.1'
 
+    // code generator
+    compileOnly 'org.projectlombok:lombok:1.18.26'
+    annotationProcessor 'org.projectlombok:lombok:1.18.26'
+
     // logging
     implementation 'ch.qos.logback:logback-classic:1.4.5'
-
-    //vaadin
-    implementation 'com.vaadin:vaadin:24.4.4'
 
     // json
     implementation 'com.fasterxml.jackson.core:jackson-core:2.14.2'
