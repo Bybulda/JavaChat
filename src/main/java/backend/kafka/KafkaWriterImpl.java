@@ -1,5 +1,6 @@
 package backend.kafka;
 
+import backend.config.ConfigLoader;
 import com.typesafe.config.Config;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -12,11 +13,12 @@ import java.util.Properties;
 
 @Slf4j
 @Service
-public class KafkaWriterImpl implements KafkaWriter {
+public class KafkaWriterImpl implements KafkaWriter, ConfigLoader {
 
     private final KafkaProducer<byte[], byte[]> producer;
 
-    public KafkaWriterImpl(Config config) {
+    public KafkaWriterImpl() {
+        Config config = ConfigLoader.load();
         Properties props = new Properties();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, config.getString("kafka.bootstrap.Servers"));
         props.put(ProducerConfig.CLIENT_ID_CONFIG, config.getString("kafka.client.id"));

@@ -17,42 +17,44 @@ repositories {
 }
 
 dependencies {
-    //spring boot
+    // Spring Boot
     implementation 'org.springframework.boot:spring-boot-starter-web'
 
-    //spring validation
-    implementation 'org.springframework.boot:spring-boot-starter-validation:3.0.5'
+    // Spring Validation
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
 
-    //spring jpa
-    implementation 'org.springframework.data:spring-data-jpa:3.0.5'
+    // Spring Data JPA (добавлено)
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 
-    // databases
-    implementation 'org.postgresql:postgresql:42.5.4'
-    implementation 'com.zaxxer:HikariCP:5.0.1'
-    implementation 'org.jooq:jooq:3.17.8'
+    // Databases (раскомментируйте по мере необходимости)
+     implementation 'org.postgresql:postgresql:42.5.4'
+     implementation 'com.zaxxer:HikariCP:5.0.1'
+     implementation 'org.jooq:jooq:3.17.8'
 
-    // configuration
+    // Configuration
     implementation 'com.typesafe:config:1.4.2'
 
-    // redis
-    implementation group: 'org.springframework.boot', name: 'spring-boot-starter-data-redis', version: '3.2.5'
+    // Redis
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
-    // kafka
+    // Kafka
     implementation 'org.apache.kafka:kafka-clients:3.4.0'
 
-    // apache-commons
-    implementation group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
+    // Apache Commons
+    implementation 'org.apache.commons:commons-lang3:3.0'
     implementation 'commons-io:commons-io:2.16.1'
 
-    // code generator
+    // Code Generator (Lombok)
     compileOnly 'org.projectlombok:lombok:1.18.26'
     annotationProcessor 'org.projectlombok:lombok:1.18.26'
 
-    // logging
+    // Logging
     implementation 'ch.qos.logback:logback-classic:1.4.5'
 
-    // json
+    // JSON Processing
     implementation 'com.fasterxml.jackson.core:jackson-core:2.14.2'
+
+    // Testing
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }
