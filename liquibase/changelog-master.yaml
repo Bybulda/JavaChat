@@ -5,3 +5,5 @@ databaseChangeLog:
       file: db/changelog/changeset/rooms-info.sql
   - include:
       file: db/changelog/changeset/user-info.sql
+  - include:
+      file: db/changelog/changeset/messages-info.sql

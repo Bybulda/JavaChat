@@ -19,4 +19,8 @@ public class RoomsManageService {
     public boolean checkRoomInfoForTwoUsers(Long rightUserId, Long leftUserId){
         return roomsInfoRepository.existsByLeftUserAndRightUserOrRightUserAndLeftUser(leftUserId, rightUserId, rightUserId, leftUserId);
     }
+
+    public void deleteRoom(Long roomId){
+        roomsInfoRepository.deleteById(roomId);
+    }
 }

@@ -34,8 +34,8 @@ dependencies {
     // Configuration
     implementation 'com.typesafe:config:1.4.2'
 
-    // Redis
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+//    // Redis
+//    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
     // Kafka
     implementation 'org.apache.kafka:kafka-clients:3.4.0'

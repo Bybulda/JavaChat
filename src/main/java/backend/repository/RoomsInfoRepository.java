@@ -8,5 +8,8 @@ import java.util.Optional;
 
 public interface RoomsInfoRepository extends CrudRepository<RoomsInfo, Long> {
     public List<RoomsInfo> findAllByLeftUserOrRightUser(Long leftUserId, Long rightUserId);
+
     public boolean existsByLeftUserAndRightUserOrRightUserAndLeftUser(Long leftId, Long rightId, Long rightUserId, Long leftUserId);
+
+    public void deleteById(Long id);
 }
