@@ -25,4 +25,8 @@ public class UserRegistrationService {
     public Optional<Long> getUserInfoByUsername(String username) {
         return userInfoRepository.findIdByUserName(username);
     }
+
+    public void saveUserInfo(UserInfo userInfo) {
+        userInfoRepository.save(userInfo);
+    }
 }

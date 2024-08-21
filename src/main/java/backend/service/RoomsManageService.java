@@ -23,4 +23,8 @@ public class RoomsManageService {
     public void deleteRoom(Long roomId){
         roomsInfoRepository.deleteById(roomId);
     }
+
+    public void saveRoom(RoomsInfo room){
+        roomsInfoRepository.save(room);
+    }
 }

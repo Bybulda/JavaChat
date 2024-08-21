@@ -23,4 +23,8 @@ public class MessagesMenageService {
     public void deleteAllMessagesByChatId(Long chatId) {
         messagesInfoRepository.deleteAllByChatId(chatId);
     }
+
+    public void saveMessage(MessagesInfo messagesInfo) {
+        messagesInfoRepository.save(messagesInfo);
+    }
 }
