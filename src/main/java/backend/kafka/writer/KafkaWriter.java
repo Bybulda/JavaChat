@@ -1,4 +1,4 @@
-package backend.kafka;
+package backend.kafka.writer;
 
 public interface KafkaWriter {
 

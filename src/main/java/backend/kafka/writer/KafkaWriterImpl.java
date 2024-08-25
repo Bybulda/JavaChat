@@ -1,4 +1,4 @@
-package backend.kafka;
+package backend.kafka.writer;
 
 import backend.config.ConfigLoader;
 import com.typesafe.config.Config;
