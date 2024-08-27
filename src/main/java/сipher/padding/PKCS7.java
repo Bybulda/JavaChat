@@ -16,6 +16,7 @@ public class PKCS7 implements IPadding {
         return result;
     }
 
+    // TODO: удалить паддинг
     @Override
     public byte[] removePadding(byte[] text) {
         return new byte[0];
