@@ -2,23 +2,20 @@ package сipher.padding;
 
 import сipher.IPadding;
 
+import java.util.Arrays;
+
 public class PKCS7 implements IPadding {
     @Override
     public byte[] makeWithPadding(byte[] text, int requiredSizeBytes) {
-        int delim = text.length % requiredSizeBytes;
-        int newLength = text.length + requiredSizeBytes;
-        int paddedLength = requiredSizeBytes - delim;
-        byte[] result = delim == 0 ? new byte[newLength] : new byte[newLength - delim];
-        System.arraycopy(text, 0, result, 0, text.length);
+        byte[] result = makeArray(text, requiredSizeBytes);
         for (int i = text.length; i < result.length; i++) {
-            result[i] = (byte) paddedLength;
+            result[i] = (byte) (requiredSizeBytes - text.length % requiredSizeBytes);
         }
         return result;
     }
 
-    // TODO: удалить паддинг
     @Override
     public byte[] removePadding(byte[] text) {
-        return new byte[0];
+        return Arrays.copyOf(text, text.length - (text[text.length - 1] & 0xFF));
     }
 }
