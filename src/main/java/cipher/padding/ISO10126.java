@@ -1,6 +1,6 @@
-package сipher.padding;
+package cipher.padding;
 
-import сipher.IPadding;
+import cipher.IPadding;
 
 import java.util.Arrays;
 import java.util.Random;

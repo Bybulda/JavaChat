@@ -1,4 +1,4 @@
-package сipher;
+package cipher;
 
 public interface IPadding {
     public byte[] makeWithPadding(byte[] text, int requiredSizeBytes);

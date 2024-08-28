@@ -1,6 +1,4 @@
-package сipher;
-
-import cipher.algoritms.rc5.model.Word;
+package cipher;
 
 public interface IKeyExpansion {
 
