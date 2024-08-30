@@ -4,7 +4,8 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 
 public interface ConfigLoader {
-    static Config load() {
+
+    static Config load(){
         return ConfigFactory.parseResources("application.conf");
     }
 }
