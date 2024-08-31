@@ -13,6 +13,7 @@ public class JsonMessage {
     private long chatId;
     private long id;
     private long senderId;
+    // actions type: disconnect, connect, delete, text, image, file
     private String messageType;
     private byte[] message;
     private String timestamp;
