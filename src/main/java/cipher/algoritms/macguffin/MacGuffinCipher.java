@@ -33,8 +33,7 @@ public class MacGuffinCipher implements ISymmCipher, IKeyExpansion {
     }
 
     public MacGuffinCipher(byte[] key){
-        initTable();
-
+        setKey(key);
     }
 
     private char getRforRound(char a, char b, char c){
@@ -56,7 +55,25 @@ public class MacGuffinCipher implements ISymmCipher, IKeyExpansion {
 
     @Override
     public void setKey(byte[] key) {
+        int i, j;
+        byte[][] k = new byte[2][8];
+        initTable();
 
+        System.arraycopy(key, 0, k[0], 0, 8);
+        System.arraycopy(key, 8, k[1], 0, 8);
+
+        for (i = 0; i < keySize; i++) {
+            keys[i] = 0;
+        }
+
+        for (i = 0; i < 2; i++) {
+            for (j = 0; j < 32; j++) {
+                encryptBlock(k[i]);
+                keys[j * 3] ^= (char) ((k[i][0] & 0xFF) | ((k[i][1] & 0xFF) << 8));
+                keys[j * 3 + 1] ^= (char) ((k[i][2] & 0xFF) | ((k[i][3] & 0xFF) << 8));
+                keys[j * 3 + 2] ^= (char) ((k[i][4] & 0xFF) | ((k[i][5] & 0xFF) << 8));
+            }
+        }
     }
 
     @Override

@@ -9,9 +9,10 @@ import static cipher.algoritms.operations.BitOperations.*;
 
 public class RC5Cipher implements ISymmCipher, IKeyExpansion {
 
-    public RC5Cipher(byte[] key){
+    public RC5Cipher(byte[] key) {
         setKey(key);
     }
+
     private final int wordSize = 32;
 
     private final int rounds = 12;
@@ -31,7 +32,7 @@ public class RC5Cipher implements ISymmCipher, IKeyExpansion {
         Word<byte[]> initial = splitInHalf(block);
         long left = addModulo(bytesToLong(initial.getWordA()), expandedKeyTable[0], wordSize);
         long right = addModulo(bytesToLong(initial.getWordB()), expandedKeyTable[1], wordSize);
-        for (int i = 1; i <= rounds ; i++) {
+        for (int i = 1; i <= rounds; i++) {
             left = addModulo(rotationLeft(left ^ right, right, wordSize), expandedKeyTable[2 * i], wordSize);
             right = addModulo(rotationLeft(right ^ left, left, wordSize), expandedKeyTable[2 * i + 1], wordSize);
         }
@@ -46,8 +47,8 @@ public class RC5Cipher implements ISymmCipher, IKeyExpansion {
         long left = bytesToLong(initial.getWordA());
         long right = bytesToLong(initial.getWordB());
         for (int i = rounds; i > 0; i--) {
-            right = rotationRight(subModulo(right, expandedKeyTable[2*i + 1], wordSize), left, wordSize) ^ left;
-            left = rotationRight(subModulo(left, expandedKeyTable[2*i], wordSize), right, wordSize) ^ right;
+            right = rotationRight(subModulo(right, expandedKeyTable[2 * i + 1], wordSize), left, wordSize) ^ left;
+            left = rotationRight(subModulo(left, expandedKeyTable[2 * i], wordSize), right, wordSize) ^ right;
         }
         byte[] leftSide = longToBytes(subModulo(left, expandedKeyTable[0], wordSize), wordSize);
         byte[] rightSide = longToBytes(subModulo(right, expandedKeyTable[1], wordSize), wordSize);
@@ -65,12 +66,12 @@ public class RC5Cipher implements ISymmCipher, IKeyExpansion {
         int u = wordSize / 8;
         int[] low = new int[wordsInKey];
         for (i = 0; i != -1; i--) {
-            low[i/u] = (low[i/u] << 8) + (key[i] & 0xff);
+            low[i / u] = (low[i / u] << 8) + (key[i] & 0xff);
         }
-        for (expandedKeyTable[0] = magicP, i = 1; i < tSize; i++){
+        for (expandedKeyTable[0] = magicP, i = 1; i < tSize; i++) {
             expandedKeyTable[i] = expandedKeyTable[i - 1] + magicQ;
         }
-        for (left = right = i = j = k = 0; k < 3 * tSize; k++, i = (i + 1) % tSize, j = (j + 1) % wordsInKey){
+        for (left = right = i = j = k = 0; k < 3 * tSize; k++, i = (i + 1) % tSize, j = (j + 1) % wordsInKey) {
             left = (int) (expandedKeyTable[i] = rotationLeft(expandedKeyTable[i] + left + right, 3, wordSize));
             right = low[j] = (int) rotationLeft(low[j] + left + right, left + right, wordSize);
         }

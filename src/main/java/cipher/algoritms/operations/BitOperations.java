@@ -3,16 +3,19 @@ package cipher.algoritms.operations;
 import cipher.algoritms.rc5.model.Word;
 
 public class BitOperations {
+    private BitOperations(){
 
-    public static long rotationLeft(long x, long y, int sizeof){
-        return (x << (y &(sizeof - 1))) | (x >>> (sizeof - (y&(sizeof - 1))));
     }
 
-    public static long rotationRight(long x, long y, int sizeof){
-        return (x >>> (y &(sizeof - 1))) | (x << (sizeof - (y&(sizeof - 1))));
+    public static long rotationLeft(long x, long y, int sizeof) {
+        return (x << (y & (sizeof - 1))) | (x >>> (sizeof - (y & (sizeof - 1))));
     }
 
-    public static byte[] byteArrayXOR(byte[] leftArray, byte[] rightArray){
+    public static long rotationRight(long x, long y, int sizeof) {
+        return (x >>> (y & (sizeof - 1))) | (x << (sizeof - (y & (sizeof - 1))));
+    }
+
+    public static byte[] byteArrayXOR(byte[] leftArray, byte[] rightArray) {
         int maxedLength = Math.max(leftArray.length, rightArray.length);
         byte[] left = maxedLength == leftArray.length ? leftArray : rightArray;
         byte[] right = leftArray == left ? rightArray : leftArray;
