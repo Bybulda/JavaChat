@@ -2,6 +2,7 @@ package backend.service;
 
 import backend.model.RoomsInfo;
 import backend.repository.RoomsInfoRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -16,14 +17,16 @@ public class RoomsManageService {
         return roomsInfoRepository.findAllByLeftUserOrRightUser(userId, userId);
     }
 
-    public boolean checkRoomInfoForTwoUsers(Long rightUserId, Long leftUserId){
-        return roomsInfoRepository.existsByLeftUserAndRightUserOrRightUserAndLeftUser(leftUserId, rightUserId, rightUserId, leftUserId);
+    public boolean checkRoomInfoForTwoUsers(Long leftUserId, Long rightUserId){
+        return roomsInfoRepository.existsByLeftUserAndRightUserOrRightUserAndLeftUser(leftUserId, rightUserId, leftUserId, rightUserId);
     }
 
+    @Transactional
     public void deleteRoom(Long roomId){
         roomsInfoRepository.deleteById(roomId);
     }
 
+    @Transactional
     public void saveRoom(RoomsInfo room){
         roomsInfoRepository.save(room);
     }

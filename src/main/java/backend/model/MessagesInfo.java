@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.Date;
 
 @Entity
@@ -24,6 +25,6 @@ public class MessagesInfo {
     private long componentId;
     private String messageType;
     private byte[] message;
-    private Date timestamp;
+    private LocalDateTime timestamp;
 
 }

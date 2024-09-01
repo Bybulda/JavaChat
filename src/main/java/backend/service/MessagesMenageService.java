@@ -2,6 +2,8 @@ package backend.service;
 
 import backend.model.MessagesInfo;
 import backend.repository.MessagesInfoRepository;
+import jakarta.transaction.Transactional;
+import org.aspectj.bridge.Message;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -16,15 +18,18 @@ public class MessagesMenageService {
         return messagesInfoRepository.findAllByChatId(chatId);
     }
 
+    @Transactional
     public void deleteMessageById(Long messageId, Long chatId) {
         messagesInfoRepository.deleteByIdAndChatId(messageId, chatId);
     }
 
+    @Transactional
     public void deleteAllMessagesByChatId(Long chatId) {
         messagesInfoRepository.deleteAllByChatId(chatId);
     }
 
-    public void saveMessage(MessagesInfo messagesInfo) {
-        messagesInfoRepository.save(messagesInfo);
+    @Transactional
+    public MessagesInfo saveMessage(MessagesInfo messagesInfo) {
+        return messagesInfoRepository.save(messagesInfo);
     }
 }
