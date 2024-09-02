@@ -1,6 +1,8 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.0.6'
+    id 'org.springframework.boot' version '3.2.5'
+    id 'io.spring.dependency-management' version '1.1.4'
+    id 'com.vaadin' version '24.3.10'
 }
 
 apply plugin: 'io.spring.dependency-management'
@@ -12,6 +14,10 @@ java {
     targetCompatibility = JavaVersion.VERSION_17
 }
 
+ext {
+    set('vaadinVersion', "24.3.10")
+}
+
 repositories {
     mavenCentral()
 }
@@ -19,6 +25,9 @@ repositories {
 dependencies {
     // Spring Boot
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'com.vaadin:vaadin-spring-boot-starter'
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
 
     // Spring Validation
     implementation 'org.springframework.boot:spring-boot-starter-validation'
@@ -48,6 +57,9 @@ dependencies {
     compileOnly 'org.projectlombok:lombok:1.18.26'
     annotationProcessor 'org.projectlombok:lombok:1.18.26'
 
+    //vaadin
+    implementation 'com.vaadin:vaadin:24.4.4'
+
     // Logging
     implementation 'ch.qos.logback:logback-classic:1.4.5'
 
@@ -57,6 +69,12 @@ dependencies {
     // Testing
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "com.vaadin:vaadin-bom:${vaadinVersion}"
+    }
 }
 
 test {
