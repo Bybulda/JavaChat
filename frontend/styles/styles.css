@@ -1,0 +1,45 @@
+.scrollable-layout {
+
+    width: 50%;
+    overflow-y: auto; /* Включает вертикальную прокрутку */
+    overflow-x: hidden;
+    border: 1px solid #ccc;
+    padding: 10px;
+    background-color: #f9f9f9;
+}
+
+.message-container {
+    width: 97%;
+    word-wrap: break-word;
+    padding: 10px;
+    border: 1px solid #ccc;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    background-color: #ffffff;
+}
+
+.sender-name {
+    font-weight: bold;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.message-text {
+    white-space: pre-wrap;
+    margin-bottom: 10px;
+}
+
+.message-image {
+    max-width: 100%;
+    height: auto;
+    margin-bottom: 10px;
+}
+
+.message-link {
+    color: #007bff;
+    text-decoration: none;
+}
+
+.message-link:hover {
+    text-decoration: underline;
+}
