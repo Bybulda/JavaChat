@@ -1,6 +1,6 @@
-package backend.kafka.writer;
+package application.backend.kafka.writer;
 
-import backend.config.ConfigLoader;
+import application.backend.config.ConfigLoader;
 import com.typesafe.config.Config;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.KafkaProducer;

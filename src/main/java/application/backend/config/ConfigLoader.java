@@ -1,4 +1,4 @@
-package backend.config;
+package application.backend.config;
 
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;

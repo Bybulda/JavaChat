@@ -1,9 +1,8 @@
-package backend.service;
+package application.backend.service;
 
-import backend.model.MessagesInfo;
-import backend.repository.MessagesInfoRepository;
+import application.backend.model.MessagesInfo;
+import application.backend.repository.MessagesInfoRepository;
 import jakarta.transaction.Transactional;
-import org.aspectj.bridge.Message;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

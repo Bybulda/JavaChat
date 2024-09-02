@@ -1,7 +1,7 @@
-package backend.parser.model;
+package application.backend.parser.model;
 
 
-import backend.model.CipherInfo;
+import application.backend.model.CipherInfo;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

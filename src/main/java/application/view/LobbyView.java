@@ -19,31 +19,29 @@ import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.component.upload.receivers.MultiFileMemoryBuffer;
 import com.vaadin.flow.component.virtuallist.VirtualList;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
-import com.vaadin.flow.router.BeforeEvent;
-import com.vaadin.flow.router.HasUrlParameter;
-import com.vaadin.flow.router.PageTitle;
-import com.vaadin.flow.router.Route;
+import com.vaadin.flow.router.*;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 
-@Route("lobby")
+@Route("lobby/:id/:name")
 @PageTitle("Lobby")
 @CssImport("./styles/styles.css")
-public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>, NotificationHolder {
+public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, NotificationHolder {
     private long id;
+    private String userName;
     private final Grid<Channel> channelsGrid;
     private final VerticalLayout chatPlace;
     private final H3 header;
     private long messageId = 1;
 
-    @Override
-    public void setParameter(BeforeEvent beforeEvent, Long aLong) {
-        id = aLong;
-        header.setText(String.format("Hello %d", id));
-    }
+//    @Override
+//    public void setParameter(BeforeEvent beforeEvent, Long aLong) {
+//        id = aLong;
+//        header.setText(String.format("Hello %d", id));
+//    }
 
     public LobbyView() {
         setSizeFull();
@@ -212,5 +210,12 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
 
     private void test(){
 
+    }
+
+    @Override
+    public void beforeEnter(BeforeEnterEvent beforeEnterEvent) {
+        id = Long.parseLong(beforeEnterEvent.getRouteParameters().get("id").orElse(""));
+        userName = beforeEnterEvent.getRouteParameters().get("name").orElse("");
+        header.setText(String.format("Welcome to chat, %s!", userName));
     }
 }

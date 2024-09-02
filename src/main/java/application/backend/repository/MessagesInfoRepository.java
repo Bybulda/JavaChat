@@ -1,6 +1,6 @@
-package backend.repository;
+package application.backend.repository;
 
-import backend.model.MessagesInfo;
+import application.backend.model.MessagesInfo;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 

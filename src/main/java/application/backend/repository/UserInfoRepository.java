@@ -1,15 +1,14 @@
-package backend.repository;
+package application.backend.repository;
 
-import backend.model.UserInfo;
+import application.backend.model.UserInfo;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
-
-import java.util.List;
-import java.util.Optional;
 
 @Repository
 public interface UserInfoRepository extends CrudRepository<UserInfo, Long> {
     public boolean existsByUserName(String name);
+
+    public boolean existsByUserNameAndPassword(String username, String password);
 
     public UserInfo findUserInfoByUserNameAndPassword(String name, String password);
 

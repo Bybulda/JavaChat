@@ -1,7 +1,7 @@
-package backend.parser.impl;
+package application.backend.parser.impl;
 
-import backend.parser.JsonActionParser;
-import backend.parser.model.JsonAction;
+import application.backend.parser.JsonActionParser;
+import application.backend.parser.model.JsonAction;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 

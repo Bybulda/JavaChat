@@ -1,7 +1,7 @@
-package backend.service;
+package application.backend.service;
 
-import backend.model.CipherInfo;
-import backend.repository.CipherInfoRepository;
+import application.backend.model.CipherInfo;
+import application.backend.repository.CipherInfoRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

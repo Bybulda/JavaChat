@@ -1,4 +1,4 @@
-package backend.model;
+package application.backend.model;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -7,20 +7,23 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "cipher_info")
+@Table(name = "rooms_info")
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class CipherInfo {
+public class RoomsInfo {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
-    private String algorithm;
-    private String mode;
-    private String padding;
-    private int keySizeBits;
-    private int blockSizeBits;
-    private byte[] iv;
+
+    private long leftUser;
+    private long rightUser;
+    private String titleLeft;
+    private String titleRight;
+    private long cipherInfoId;
+    private byte[] p;
+    private byte[] g;
+
 }

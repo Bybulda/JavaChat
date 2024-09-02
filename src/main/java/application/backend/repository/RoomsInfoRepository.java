@@ -1,11 +1,10 @@
-package backend.repository;
+package application.backend.repository;
 
-import backend.model.RoomsInfo;
+import application.backend.model.RoomsInfo;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
-import java.util.Optional;
 
 @Repository
 public interface RoomsInfoRepository extends CrudRepository<RoomsInfo, Long> {

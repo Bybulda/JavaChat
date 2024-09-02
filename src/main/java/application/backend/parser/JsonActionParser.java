@@ -1,6 +1,6 @@
-package backend.parser;
+package application.backend.parser;
 
-import backend.parser.model.JsonAction;
+import application.backend.parser.model.JsonAction;
 import com.fasterxml.jackson.core.JsonProcessingException;
 
 public interface JsonActionParser {

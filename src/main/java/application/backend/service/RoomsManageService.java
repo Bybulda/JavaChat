@@ -1,7 +1,7 @@
-package backend.service;
+package application.backend.service;
 
-import backend.model.RoomsInfo;
-import backend.repository.RoomsInfoRepository;
+import application.backend.model.RoomsInfo;
+import application.backend.repository.RoomsInfoRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

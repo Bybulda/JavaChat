@@ -1,4 +1,4 @@
-package backend.parser.model;
+package application.backend.parser.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
