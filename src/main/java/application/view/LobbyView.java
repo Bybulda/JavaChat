@@ -15,6 +15,8 @@ import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.component.upload.Upload;
+import com.vaadin.flow.component.upload.receivers.MultiFileMemoryBuffer;
 import com.vaadin.flow.component.virtuallist.VirtualList;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.BeforeEvent;
@@ -56,8 +58,10 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
         channelModLayout.setAlignItems(Alignment.END);
         TextField name = new TextField("Channel Name");
         Button addChanel = new Button(new Icon(VaadinIcon.PLUS), buttonClickEvent -> validateChannelInfo(name.getValue()));
-//        addChanel.setDisableOnClick(true);
-        channelModLayout.add(name, addChanel);
+        addChanel.setTooltipText("Add new channel");
+        Button refreshChannels = new Button(new Icon(VaadinIcon.REFRESH), buttonClickEvent -> refreshChannels());
+        refreshChannels.setTooltipText("Refresh channels list");
+        channelModLayout.add(name, addChanel, refreshChannels);
         channelModLayout.expand(name);
 
         // Channels general layout
@@ -69,6 +73,7 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
         channelsGrid.addColumn(Channel::getBuddy).setHeader("Buddy");
         channelsGrid.addColumn(new ComponentRenderer<>(person -> {
             Button deleteButton = new Button("Удалить");
+            deleteButton.setTooltipText("Delete channel for all users");
             deleteButton.addClickListener(click -> {
                 // Логика удаления
                 channelsGrid.getDataProvider().refreshAll();
@@ -77,9 +82,7 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
         })).setHeader("Action");
         channelsGrid.addSelectionListener(selection -> {
             Optional<Channel> optionalPerson = selection.getFirstSelectedItem();
-            if (optionalPerson.isPresent()) {
-                Notification.show(optionalPerson.get().getChannelName(), 3000, Notification.Position.BOTTOM_END);
-            }
+            optionalPerson.ifPresent(channel -> Notification.show(channel.getChannelName(), 3000, Notification.Position.BOTTOM_END));
         });
         channelsGrid.setItems(List.of(new Channel(1, 1, 1,"name", "nigga")));
         channelsLayout.add(header, channelModLayout, channelsGrid);
@@ -96,7 +99,9 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
         // buttons and fields
         TextField message = new TextField("Your Message");
         Button sendButton = new Button(new Icon(VaadinIcon.PAPERPLANE));
+        sendButton.setTooltipText("Send message");
         Button fileButton = new Button(new Icon(VaadinIcon.FILE));
+        fileButton.setTooltipText("Send file");
         sendButton.setDisableOnClick(true);
         fileButton.setDisableOnClick(true);
         sendButton.addClickListener(action -> {
@@ -104,15 +109,21 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
             sendButton.setEnabled(true);
             message.clear();
         });
-        fileButton.addClickListener(action -> {
-            Image img = new Image("images/test.jpg", "Локальное изображение");
-            Div imageContainer = new Div();
-            img.setWidth("200px");
 
-            // Добавляем изображение в Div
-            imageContainer.add(img);
-            chatPlace.add(imageContainer);
+        fileButton.addClickListener(action -> {
+            MultiFileMemoryBuffer buffer = new MultiFileMemoryBuffer();
+            Upload upload = new Upload(buffer);
+            upload.setMaxFiles(1);
+            upload.addSucceededListener(succeededEvent -> {
+                String fileName = succeededEvent.getFileName();
+                System.out.println(fileName);
+            });
+            Dialog dialog = new Dialog();
+            dialog.add(new H3("Upload your file"), upload);
+            dialog.open();
+
             fileButton.setEnabled(true);
+
         });
 
 
@@ -142,13 +153,13 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
         VerticalLayout dialogLayout = new VerticalLayout();
         dialogLayout.setAlignItems(Alignment.BASELINE);
 
-        ComboBox<String> padding = new ComboBox<>("Padding", "ISO186");
+        ComboBox<String> padding = new ComboBox<>("Padding", "ISO10126", "PKCS7", "Zeros", "ANSIX923");
         padding.setRequiredIndicatorVisible(true);
 
-        ComboBox<String> cipherMode = new ComboBox<>("Cipher Mode", "CBC", "CFB", "OFB", "OFB/CBC");
+        ComboBox<String> cipherMode = new ComboBox<>("Cipher Mode", "CBC", "CFB", "OFB", "CTR", "ECB", "PCBC", "Random Delta");
         cipherMode.setRequiredIndicatorVisible(true);
 
-        ComboBox<String> cipher = new ComboBox<>("Cipher Algorithm", "RC5");
+        ComboBox<String> cipher = new ComboBox<>("Cipher Algorithm", "RC5", "MACGUFFIN");
         cipherMode.setRequiredIndicatorVisible(true);
 
         dialogLayout.add(padding, cipherMode, cipher);
@@ -195,8 +206,7 @@ public class LobbyView extends HorizontalLayout implements HasUrlParameter<Long>
         ContextMenu menu = new ContextMenu(messageDiv);
         menu.getClassNames().add("custom-context-menu");
         menu.setOpenOnClick(true);
-        menu.addItem("Delete for me");
-        menu.addItem("Delete for all");
+        menu.addItem("Delete");
         return messageDiv;
     }
 
