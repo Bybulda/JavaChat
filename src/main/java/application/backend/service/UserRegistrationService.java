@@ -31,6 +31,10 @@ public class UserRegistrationService {
         return userInfoRepository.findUserInfoByUserName(username);
     }
 
+    public boolean checkUserByUSerName(String username) {
+        return userInfoRepository.existsByUserName(username);
+    }
+
     @Transactional
     public void saveUserInfo(UserInfo userInfo) {
         userInfoRepository.save(userInfo);

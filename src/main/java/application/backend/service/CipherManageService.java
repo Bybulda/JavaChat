@@ -21,7 +21,7 @@ public class CipherManageService {
     }
 
     @Transactional
-    public void saveCipherInfo(CipherInfo cipherInfo) {
-        cipherInfoRepository.save(cipherInfo);
+    public CipherInfo saveCipherInfo(CipherInfo cipherInfo) {
+        return cipherInfoRepository.save(cipherInfo);
     }
 }

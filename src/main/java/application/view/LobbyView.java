@@ -1,5 +1,12 @@
 package application.view;
 
+import application.backend.model.CipherInfo;
+import application.backend.model.RoomsInfo;
+import application.backend.model.UserInfo;
+import application.backend.service.CipherManageService;
+import application.backend.service.MessagesMenageService;
+import application.backend.service.RoomsManageService;
+import application.backend.service.UserRegistrationService;
 import application.model.Channel;
 import application.view.extenders.NotificationHolder;
 import com.vaadin.flow.component.button.Button;
@@ -20,9 +27,11 @@ import com.vaadin.flow.component.upload.receivers.MultiFileMemoryBuffer;
 import com.vaadin.flow.component.virtuallist.VirtualList;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.*;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -30,18 +39,26 @@ import java.util.Optional;
 @PageTitle("Lobby")
 @CssImport("./styles/styles.css")
 public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, NotificationHolder {
+    // Services
+    @Autowired
+    CipherManageService cipherManageService;
+    @Autowired
+    MessagesMenageService messagesMenageService;
+    @Autowired
+    RoomsManageService roomsManageService;
+    @Autowired
+    UserRegistrationService userRegistrationService;
+
+    // user info
     private long id;
     private String userName;
-    private final Grid<Channel> channelsGrid;
+    // ui
+    private final Grid<RoomsInfo> channelsGrid;
     private final VerticalLayout chatPlace;
     private final H3 header;
+    // chat info
+    private RoomsInfo currentRoom;
     private long messageId = 1;
-
-//    @Override
-//    public void setParameter(BeforeEvent beforeEvent, Long aLong) {
-//        id = aLong;
-//        header.setText(String.format("Hello %d", id));
-//    }
 
     public LobbyView() {
         setSizeFull();
@@ -65,24 +82,30 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         // Channels general layout
         VerticalLayout channelsLayout = new VerticalLayout();
         channelsLayout.setWidth("30%");
-        channelsGrid = new Grid<>(Channel.class, false);
+        channelsGrid = new Grid<>(RoomsInfo.class, false);
         channelsGrid.setHeightFull();
-        channelsGrid.addColumn(Channel::getChannelName).setHeader("Channel Name");
-        channelsGrid.addColumn(Channel::getBuddy).setHeader("Buddy");
+        channelsGrid.addColumn(RoomsInfo::getTitleLeft).setHeader("Channel Name");
         channelsGrid.addColumn(new ComponentRenderer<>(person -> {
             Button deleteButton = new Button("Удалить");
             deleteButton.setTooltipText("Delete channel for all users");
             deleteButton.addClickListener(click -> {
                 // Логика удаления
-                channelsGrid.getDataProvider().refreshAll();
+                if (person != null) {
+                    cipherManageService.deleteCipherInfo(person.getCipherInfoId());
+                    messagesMenageService.deleteAllMessagesByChatId(person.getId());
+                    roomsManageService.deleteRoom(person.getId());
+                    refreshChannels();
+                }
+                else{
+                    openErrorNotification("Something went wrong please try again");
+                }
             });
             return deleteButton;
         })).setHeader("Action");
         channelsGrid.addSelectionListener(selection -> {
-            Optional<Channel> optionalPerson = selection.getFirstSelectedItem();
-            optionalPerson.ifPresent(channel -> Notification.show(channel.getChannelName(), 3000, Notification.Position.BOTTOM_END));
+            Optional<RoomsInfo> optionalPerson = selection.getFirstSelectedItem();
+            optionalPerson.ifPresent(channel -> Notification.show(channel.getTitleLeft(), 3000, Notification.Position.BOTTOM_END));
         });
-        channelsGrid.setItems(List.of(new Channel(1, 1, 1,"name", "nigga")));
         channelsLayout.add(header, channelModLayout, channelsGrid);
         channelsLayout.expand(channelsGrid);
         channelsLayout.expand(channelModLayout);
@@ -148,6 +171,8 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         Dialog dialog = new Dialog();
 
         dialog.setHeaderTitle("New chat settings");
+        TextField otherUserName = new TextField("Your buddy name");
+        otherUserName.setRequiredIndicatorVisible(true);
         VerticalLayout dialogLayout = new VerticalLayout();
         dialogLayout.setAlignItems(Alignment.BASELINE);
 
@@ -158,16 +183,45 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         cipherMode.setRequiredIndicatorVisible(true);
 
         ComboBox<String> cipher = new ComboBox<>("Cipher Algorithm", "RC5", "MACGUFFIN");
-        cipherMode.setRequiredIndicatorVisible(true);
+        cipher.setRequiredIndicatorVisible(true);
 
-        dialogLayout.add(padding, cipherMode, cipher);
+        dialogLayout.add(otherUserName, padding, cipherMode, cipher);
 
         HorizontalLayout buttonsLayout = new HorizontalLayout();
         buttonsLayout.setWidthFull();
         Button cancelButton = new Button("Cancel");
-        cancelButton.addClickListener(click -> {dialog.close();});
+        cancelButton.addClickListener(click -> dialog.close());
         Button okButton = new Button("Apply settings");
-        okButton.addClickListener(click -> {});
+        okButton.addClickListener(click -> {
+
+            String chatPadding = padding.getValue();
+            String chatMode = cipherMode.getValue();
+            String chatCipher = cipher.getValue();
+            String buddyName = otherUserName.getValue();
+            if(chatMode == null || buddyName == null || chatCipher == null || chatPadding == null) {
+                openErrorNotification("All fields must be filled!");
+            }
+            else{
+                if (userRegistrationService.checkUserByUSerName(buddyName)){
+                    UserInfo buddy = userRegistrationService.getUserInfoByUsername(buddyName);
+                    byte[] iv = new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+                    CipherInfo info = CipherInfo.builder().mode(chatMode).algorithm(chatCipher).padding(chatPadding)
+                            .blockSizeBits(128).keySizeBits(96).iv(iv).build();
+                    CipherInfo newInfo = cipherManageService.saveCipherInfo(info);
+                    RoomsInfo room = RoomsInfo.builder().
+                            cipherInfoId(newInfo.getId())
+                            .leftUser(id)
+                            .rightUser(buddy.getId()).titleRight(channel).titleLeft(channel)
+                            .g(new byte[]{}).p(new byte[]{}).build();
+                    roomsManageService.saveRoom(room);
+                }
+                else {
+                    openErrorNotification("There is no such buddy name!");
+                }
+            }
+
+
+        });
         buttonsLayout.add(cancelButton, okButton);
         dialog.add(dialogLayout, buttonsLayout);
         dialog.open();
@@ -177,6 +231,8 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
     }
 
     private void refreshChannels(){
+        List<RoomsInfo> currentRooms = roomsManageService.getRoomsInfoForUser(id);
+        channelsGrid.setItems(currentRooms);
 
     }
 
@@ -208,7 +264,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         return messageDiv;
     }
 
-    private void test(){
+    private void addChannelToGrid(CipherInfo info){
 
     }
 
