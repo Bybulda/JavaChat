@@ -31,6 +31,10 @@ public class UserRegistrationService {
         return userInfoRepository.findUserInfoByUserName(username);
     }
 
+    public UserInfo getUserInfoById(long id) {
+        return userInfoRepository.findById(id).orElse(null);
+    }
+
     public boolean checkUserByUSerName(String username) {
         return userInfoRepository.existsByUserName(username);
     }

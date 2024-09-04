@@ -1,6 +1,7 @@
 package application.view;
 
 import application.backend.model.CipherInfo;
+import application.backend.model.MessagesInfo;
 import application.backend.model.RoomsInfo;
 import application.backend.model.UserInfo;
 import application.backend.service.CipherManageService;
@@ -27,13 +28,17 @@ import com.vaadin.flow.component.upload.receivers.MultiFileMemoryBuffer;
 import com.vaadin.flow.component.virtuallist.VirtualList;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.*;
+import com.vaadin.flow.server.StreamResource;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Properties;
 
 @Route("lobby/:id/:name")
 @PageTitle("Lobby")
@@ -57,8 +62,9 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
     private final VerticalLayout chatPlace;
     private final H3 header;
     // chat info
-    private RoomsInfo currentRoom;
+    private RoomsInfo currentRoom = null;
     private long messageId = 1;
+
 
     public LobbyView() {
         setSizeFull();
@@ -126,12 +132,20 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         sendButton.setDisableOnClick(true);
         fileButton.setDisableOnClick(true);
         sendButton.addClickListener(action -> {
+            if( currentRoom == null){
+                openErrorNotification("Please select a room");
+                return;
+            }
             sendMessage(message.getValue());
             sendButton.setEnabled(true);
             message.clear();
         });
 
         fileButton.addClickListener(action -> {
+            if (currentRoom == null){
+                openErrorNotification("Please select a room");
+                return;
+            }
             MultiFileMemoryBuffer buffer = new MultiFileMemoryBuffer();
             Upload upload = new Upload(buffer);
             upload.setMaxFiles(1);
@@ -236,36 +250,67 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
 
     }
 
+    private void refreshMessages(){
+        List<MessagesInfo> messagesInfos = messagesMenageService.getMessagesByChatId(currentRoom.getId());
+        UserInfo buddy = null;
+        for(MessagesInfo messagesInfo : messagesInfos){
+            if (messagesInfo.getSenderId() != id){
+                if(buddy == null){
+                    buddy = userRegistrationService.getUserInfoById(messagesInfo.getSenderId());
+                }
+                addMessage(messagesInfo, buddy.getUserName());
+            }
+            else{
+                addMessage(messagesInfo, userName);
+            }
+        }
+    }
+
+    private void addMessage(MessagesInfo messagesInfo, String sender){
+        chatPlace.add(createMessage(messagesInfo, sender));
+    }
+
     private void sendMessage(String message) {
-        chatPlace.add(createMessage(message));
+        MessagesInfo newMessage = MessagesInfo.builder()
+                .messageType("TEXT").message(message.getBytes(StandardCharsets.UTF_8))
+                .senderId(id).chatId(currentRoom.getId()).componentId(0).timestamp(LocalDateTime.now()).build();
+        messagesMenageService.saveMessage(newMessage);
+        addMessage(newMessage, userName);
 
     }
 
-    private Div createMessage(String message) {
+    private Div createMessage(MessagesInfo info, String sender) {
         // div holder
         Div messageDiv = new Div();
-        messageDiv.addClassName("message-container");
-        // Span
-        LocalDateTime currentDateTime = LocalDateTime.now();
-        String formattedDateTime = currentDateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        Span span = new Span(String.format("Alex [%s]", formattedDateTime));
+        String formattedDateTime = info.getTimestamp().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        Span span = new Span(String.format("%s [%s]", sender, formattedDateTime));
         span.addClassName("sender-name");
-        messageDiv.add(span);
-
-        Paragraph paragraph = new Paragraph(message);
-        paragraph.addClassName("message-text");
-        messageDiv.add(paragraph);
-
+        switch (info.getMessageType()){
+            case "TEXT":
+                String message = new String(info.getMessage(), StandardCharsets.UTF_8);
+                messageDiv.addClassName("message-container");
+                Paragraph paragraph = new Paragraph(message);
+                paragraph.addClassName("message-text");
+                messageDiv.add(span, paragraph);
+                break;
+            case "IMAGE":
+                StreamResource resource = new StreamResource("image", () -> new ByteArrayInputStream(info.getMessage()));
+                Image image = new Image(resource, "Generated Image");
+                image.addClassName("message-image");
+                messageDiv.add(span, image);
+                break;
+            case "FILE":
+                break;
+            default:
+                break;
+        }
         // Context menu creation
         ContextMenu menu = new ContextMenu(messageDiv);
         menu.getClassNames().add("custom-context-menu");
         menu.setOpenOnClick(true);
         menu.addItem("Delete");
+        messageDiv.setId(String.format("%d", info.getId()));
         return messageDiv;
-    }
-
-    private void addChannelToGrid(CipherInfo info){
-
     }
 
     @Override
