@@ -8,7 +8,6 @@ import application.backend.service.CipherManageService;
 import application.backend.service.MessagesMenageService;
 import application.backend.service.RoomsManageService;
 import application.backend.service.UserRegistrationService;
-import application.model.Channel;
 import application.view.extenders.NotificationHolder;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
@@ -25,9 +24,11 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.component.upload.receivers.MultiFileMemoryBuffer;
-import com.vaadin.flow.component.virtuallist.VirtualList;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
-import com.vaadin.flow.router.*;
+import com.vaadin.flow.router.BeforeEnterEvent;
+import com.vaadin.flow.router.BeforeEnterObserver;
+import com.vaadin.flow.router.PageTitle;
+import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.StreamResource;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -35,10 +36,8 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Properties;
 
 @Route("lobby/:id/:name")
 @PageTitle("Lobby")
@@ -101,8 +100,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                     messagesMenageService.deleteAllMessagesByChatId(person.getId());
                     roomsManageService.deleteRoom(person.getId());
                     refreshChannels();
-                }
-                else{
+                } else {
                     openErrorNotification("Something went wrong please try again");
                 }
             });
@@ -110,7 +108,11 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         })).setHeader("Action");
         channelsGrid.addSelectionListener(selection -> {
             Optional<RoomsInfo> optionalPerson = selection.getFirstSelectedItem();
-            optionalPerson.ifPresent(channel -> Notification.show(channel.getTitleLeft(), 3000, Notification.Position.BOTTOM_END));
+            optionalPerson.ifPresent(channel -> {
+                currentRoom = channel;
+                // TODO: kafka active message send
+                refreshMessages();
+            });
         });
         channelsLayout.add(header, channelModLayout, channelsGrid);
         channelsLayout.expand(channelsGrid);
@@ -132,7 +134,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         sendButton.setDisableOnClick(true);
         fileButton.setDisableOnClick(true);
         sendButton.addClickListener(action -> {
-            if( currentRoom == null){
+            if (currentRoom == null) {
                 openErrorNotification("Please select a room");
                 return;
             }
@@ -142,7 +144,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         });
 
         fileButton.addClickListener(action -> {
-            if (currentRoom == null){
+            if (currentRoom == null) {
                 openErrorNotification("Please select a room");
                 return;
             }
@@ -178,6 +180,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
             openErrorNotification("Channel name should not be empty");
         } else {
             addChannel(channel);
+
         }
     }
 
@@ -212,11 +215,10 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
             String chatMode = cipherMode.getValue();
             String chatCipher = cipher.getValue();
             String buddyName = otherUserName.getValue();
-            if(chatMode == null || buddyName == null || chatCipher == null || chatPadding == null) {
+            if (chatMode == null || buddyName == null || chatCipher == null || chatPadding == null) {
                 openErrorNotification("All fields must be filled!");
-            }
-            else{
-                if (userRegistrationService.checkUserByUSerName(buddyName)){
+            } else {
+                if (userRegistrationService.checkUserByUSerName(buddyName)) {
                     UserInfo buddy = userRegistrationService.getUserInfoByUsername(buddyName);
                     byte[] iv = new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
                     CipherInfo info = CipherInfo.builder().mode(chatMode).algorithm(chatCipher).padding(chatPadding)
@@ -228,8 +230,9 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                             .rightUser(buddy.getId()).titleRight(channel).titleLeft(channel)
                             .g(new byte[]{}).p(new byte[]{}).build();
                     roomsManageService.saveRoom(room);
-                }
-                else {
+                    refreshChannels();
+                    dialog.close();
+                } else {
                     openErrorNotification("There is no such buddy name!");
                 }
             }
@@ -241,32 +244,30 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         dialog.open();
 
 
-
     }
 
-    private void refreshChannels(){
+    private void refreshChannels() {
         List<RoomsInfo> currentRooms = roomsManageService.getRoomsInfoForUser(id);
         channelsGrid.setItems(currentRooms);
 
     }
 
-    private void refreshMessages(){
+    private void refreshMessages() {
         List<MessagesInfo> messagesInfos = messagesMenageService.getMessagesByChatId(currentRoom.getId());
         UserInfo buddy = null;
-        for(MessagesInfo messagesInfo : messagesInfos){
-            if (messagesInfo.getSenderId() != id){
-                if(buddy == null){
+        for (MessagesInfo messagesInfo : messagesInfos) {
+            if (messagesInfo.getSenderId() != id) {
+                if (buddy == null) {
                     buddy = userRegistrationService.getUserInfoById(messagesInfo.getSenderId());
                 }
                 addMessage(messagesInfo, buddy.getUserName());
-            }
-            else{
+            } else {
                 addMessage(messagesInfo, userName);
             }
         }
     }
 
-    private void addMessage(MessagesInfo messagesInfo, String sender){
+    private void addMessage(MessagesInfo messagesInfo, String sender) {
         chatPlace.add(createMessage(messagesInfo, sender));
     }
 
@@ -285,7 +286,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         String formattedDateTime = info.getTimestamp().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         Span span = new Span(String.format("%s [%s]", sender, formattedDateTime));
         span.addClassName("sender-name");
-        switch (info.getMessageType()){
+        switch (info.getMessageType()) {
             case "TEXT":
                 String message = new String(info.getMessage(), StandardCharsets.UTF_8);
                 messageDiv.addClassName("message-container");
