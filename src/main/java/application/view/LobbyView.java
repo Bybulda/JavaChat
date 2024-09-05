@@ -18,21 +18,25 @@ import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.*;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.upload.Upload;
-import com.vaadin.flow.component.upload.receivers.MultiFileMemoryBuffer;
+import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.StreamResource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -43,6 +47,7 @@ import java.util.Optional;
 @PageTitle("Lobby")
 @CssImport("./styles/styles.css")
 public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, NotificationHolder {
+    private static final Logger log = LoggerFactory.getLogger(LobbyView.class);
     // Services
     @Autowired
     CipherManageService cipherManageService;
@@ -134,8 +139,10 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         sendButton.setDisableOnClick(true);
         fileButton.setDisableOnClick(true);
         sendButton.addClickListener(action -> {
+
             if (currentRoom == null) {
                 openErrorNotification("Please select a room");
+                sendButton.setEnabled(true);
                 return;
             }
             sendMessage(message.getValue());
@@ -148,12 +155,23 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                 openErrorNotification("Please select a room");
                 return;
             }
-            MultiFileMemoryBuffer buffer = new MultiFileMemoryBuffer();
+            MemoryBuffer buffer = new MemoryBuffer();
             Upload upload = new Upload(buffer);
             upload.setMaxFiles(1);
             upload.addSucceededListener(succeededEvent -> {
                 String fileName = succeededEvent.getFileName();
+                String mimeType = succeededEvent.getMIMEType();
                 System.out.println(fileName);
+                System.out.println(mimeType);
+                try {
+                    byte[] imageBytes = toByteArray(buffer.getInputStream());
+                    MessagesInfo newMessage = MessagesInfo.builder()
+                            .message(imageBytes).messageType("IMAGE").timestamp(LocalDateTime.now())
+                            .componentId(0).senderId(id).chatId(id).build();
+                    addMessage(newMessage, userName);
+                } catch (IOException e) {
+                    log.error(e.getMessage());
+                }
             });
             Dialog dialog = new Dialog();
             dialog.add(new H3("Upload your file"), upload);
@@ -283,13 +301,13 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
     private Div createMessage(MessagesInfo info, String sender) {
         // div holder
         Div messageDiv = new Div();
+        messageDiv.addClassName("message-container");
         String formattedDateTime = info.getTimestamp().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         Span span = new Span(String.format("%s [%s]", sender, formattedDateTime));
         span.addClassName("sender-name");
         switch (info.getMessageType()) {
             case "TEXT":
                 String message = new String(info.getMessage(), StandardCharsets.UTF_8);
-                messageDiv.addClassName("message-container");
                 Paragraph paragraph = new Paragraph(message);
                 paragraph.addClassName("message-text");
                 messageDiv.add(span, paragraph);
@@ -319,5 +337,15 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         id = Long.parseLong(beforeEnterEvent.getRouteParameters().get("id").orElse(""));
         userName = beforeEnterEvent.getRouteParameters().get("name").orElse("");
         header.setText(String.format("Welcome to chat, %s!", userName));
+    }
+
+    private byte[] toByteArray(InputStream inputStream) throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        byte[] data = new byte[1024];
+        int nRead;
+        while ((nRead = inputStream.read(data, 0, data.length)) != -1) {
+            buffer.write(data, 0, nRead);
+        }
+        return buffer.toByteArray();
     }
 }

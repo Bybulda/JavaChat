@@ -9,6 +9,7 @@
 }
 
 .message-container {
+    display: inline-block;
     width: 97%;
     word-wrap: break-word;
     padding: 10px;
@@ -30,7 +31,9 @@
 }
 
 .message-image {
-    max-width: 100%;
+    max-width: 1000px;  /* Ограничиваем максимальную ширину */
+    max-height: 500px; /* Ограничиваем максимальную высоту */
+    width: auto;
     height: auto;
     margin-bottom: 10px;
 }
