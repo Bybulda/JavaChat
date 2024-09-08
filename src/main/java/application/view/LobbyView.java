@@ -136,6 +136,13 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                     cipherManageService.deleteCipherInfo(person.getCipherInfoId());
                     messagesMenageService.deleteAllMessagesByChatId(person.getId());
                     roomsManageService.deleteRoom(person.getId());
+                    long otherUser = id == person.getLeftUser() ? person.getRightUser() : person.getLeftUser();
+                    JsonAction action = JsonAction.builder().senderId(id).status("delete-channel").build();
+                    try {
+                        newChannelWriter.processMessage(actionMapper.processStringAction(action), String.format("chatlistner.%s", otherUser));
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException(e);
+                    }
                     refreshChannels();
                 } else {
                     openErrorNotification("Something went wrong please try again");
@@ -306,9 +313,9 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                             .leftUser(id)
                             .rightUser(buddy.getId()).titleRight(channel).titleLeft(channel)
                             .g(new byte[]{}).p(new byte[]{}).build();
-                    roomsManageService.saveRoom(room);
+//                    roomsManageService.saveRoom(room);
                     refreshChannels();
-                    JsonAction action = JsonAction.builder().chatName(channel).cipher(null).status("Refresh").senderId(id).g(null).p(null).aOrB(null).build();
+                    JsonAction action = JsonAction.builder().chatName(channel).cipher(newInfo).status("new-channel").senderId(id).g(new byte[]{1}).p(new byte[]{1}).aOrB(new byte[]{1}).build();
                     try {
                         newChannelWriter.processMessage(actionMapper.processStringAction(action), String.format("chatlistner.%s", buddy.getId()));
                     } catch (JsonProcessingException e) {
@@ -465,6 +472,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         channelConsumer = new KafkaConsumer<>(props);
         channelConsumer.subscribe(Collections.singletonList(String.format("chatlistner.%s", id)));
     }
+
     public static void createTopic(String topicName, int numPartitions, short replicationFactor) {
         Properties config = new Properties();
         config.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9093");
@@ -483,6 +491,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
             e.printStackTrace();
         }
     }
+
     private void processChatRequests(){
         UI currentUI = UI.getCurrent();
         newChannelsCheck.submit(() -> {
@@ -493,17 +502,41 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                     ConsumerRecords<String, String> records = channelConsumer.poll(100);
                     for (ConsumerRecord<String, String> record : records) {
                         String action = record.value();
-                        JsonAction currentAction = mapper.processJsonAction(action);
-                        System.out.println(currentAction);
-                        if (currentAction.getStatus().equals("Refresh")){
-                            currentUI.access(() -> {
-                                refreshChannels();
-                                Dialog dial = new Dialog();
-                                dial.add(new Span("Received action: " + currentAction));
-                                dial.open();
-                            });
+                        if (!action.startsWith("{")){
+                            continue;
                         }
+                        JsonAction currentAction = mapper.processJsonAction(action);
 
+                        System.out.println(currentAction);
+                        if(currentAction.getSenderId() != id){
+                            if (currentAction.getStatus().equals("new-channel") && currentAction.getP() != null){
+
+                                long senderId = currentAction.getSenderId();
+
+                                roomsManageService.saveRoom(RoomsInfo.builder()
+                                        .p(currentAction.getP()).g(currentAction.getG())
+                                        .titleRight(currentAction.getChatName()).titleLeft(currentAction.getChatName())
+                                        .rightUser(id).leftUser(senderId)
+                                        .cipherInfoId(currentAction.getCipher().getId()).build());
+                                currentUI.access(() -> {
+                                    refreshChannels();
+                                    Dialog dial = new Dialog();
+                                    dial.add(new Span("Received action: " + currentAction));
+                                    dial.open();
+                                });
+                                currentAction.setSenderId(id);
+                                currentAction.setStatus("accepted");
+                                newChannelWriter.processMessage(mapper.processStringAction(currentAction), String.format("chatlistner.%s", senderId));
+
+                            } else if(currentAction.getStatus().equals("accepted") || currentAction.getStatus().equals("delete-channel")){
+                                currentUI.access(() -> {
+                                    refreshChannels();
+                                    Dialog dial = new Dialog();
+                                    dial.add(new Span("Received action: " + currentAction));
+                                    dial.open();
+                                });
+                            }
+                        }
                     }
                 }
             } catch (Exception e) {
