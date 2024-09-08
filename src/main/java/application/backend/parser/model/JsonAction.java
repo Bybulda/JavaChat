@@ -15,6 +15,9 @@ public class JsonAction {
     private long senderId;
     private String chatName;
     private CipherInfo cipher;
+    // Request, Sucess-create
+    private String status;
     private byte[] p;
     private byte[] g;
+    private byte[] aOrB;
 }

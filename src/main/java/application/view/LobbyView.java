@@ -1,14 +1,24 @@
 package application.view;
 
+import application.backend.kafka.writer.KafkaWriter;
+import application.backend.kafka.writer.KafkaWriterImpl;
 import application.backend.model.CipherInfo;
 import application.backend.model.MessagesInfo;
 import application.backend.model.RoomsInfo;
 import application.backend.model.UserInfo;
+import application.backend.parser.JsonActionParser;
+import application.backend.parser.JsonMessageParser;
+import application.backend.parser.impl.JsonActionParserImpl;
+import application.backend.parser.impl.JsonMessageParserImpl;
+import application.backend.parser.model.JsonAction;
 import application.backend.service.CipherManageService;
 import application.backend.service.MessagesMenageService;
 import application.backend.service.RoomsManageService;
 import application.backend.service.UserRegistrationService;
 import application.view.extenders.NotificationHolder;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.contextmenu.ContextMenu;
@@ -18,6 +28,7 @@ import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.*;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
@@ -29,6 +40,14 @@ import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.StreamResource;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,8 +59,12 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Properties;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Route("lobby/:id/:name")
 @PageTitle("Lobby")
@@ -58,6 +81,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
     @Autowired
     UserRegistrationService userRegistrationService;
 
+    // region fields
     // user info
     private long id;
     private String userName;
@@ -67,8 +91,18 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
     private final H3 header;
     // chat info
     private RoomsInfo currentRoom = null;
-    private long messageId = 1;
 
+    // Kafka
+    private KafkaWriter newChannelWriter = new KafkaWriterImpl();
+    private KafkaConsumer<String, String> channelConsumer;
+
+    // Json
+    private JsonActionParser actionMapper = new JsonActionParserImpl();
+    private JsonMessageParser messageMapper = new JsonMessageParserImpl();
+
+    // Threads
+    private ExecutorService newChannelsCheck = Executors.newSingleThreadExecutor();
+    // endregion
 
     public LobbyView() {
         setSizeFull();
@@ -78,16 +112,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         header.setWidthFull();
 
         // Channels Mod
-        HorizontalLayout channelModLayout = new HorizontalLayout();
-        channelModLayout.setWidthFull();
-        channelModLayout.setAlignItems(Alignment.END);
-        TextField name = new TextField("Channel Name");
-        Button addChanel = new Button(new Icon(VaadinIcon.PLUS), buttonClickEvent -> validateChannelInfo(name.getValue()));
-        addChanel.setTooltipText("Add new channel");
-        Button refreshChannels = new Button(new Icon(VaadinIcon.REFRESH), buttonClickEvent -> refreshChannels());
-        refreshChannels.setTooltipText("Refresh channels list");
-        channelModLayout.add(name, addChanel, refreshChannels);
-        channelModLayout.expand(name);
+        HorizontalLayout channelModLayout = getRoomsLayout();
 
         // Channels general layout
         VerticalLayout channelsLayout = new VerticalLayout();
@@ -95,8 +120,15 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         channelsGrid = new Grid<>(RoomsInfo.class, false);
         channelsGrid.setHeightFull();
         channelsGrid.addColumn(RoomsInfo::getTitleLeft).setHeader("Channel Name");
+        channelsGrid.addColumn(new ComponentRenderer<>(room -> {
+            if (room != null){
+                long otherUser = id == room.getLeftUser() ? room.getRightUser() : room.getLeftUser();
+                return new Span(userRegistrationService.getUserInfoById(otherUser).getUserName());
+            }
+            return new Span("");
+        })).setHeader("Buddy Name");
         channelsGrid.addColumn(new ComponentRenderer<>(person -> {
-            Button deleteButton = new Button("Удалить");
+            Button deleteButton = new Button("Delete chat");
             deleteButton.setTooltipText("Delete channel for all users");
             deleteButton.addClickListener(click -> {
                 // Логика удаления
@@ -131,6 +163,28 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
 
         chatPlace.setHeightFull();
         // buttons and fields
+        HorizontalLayout fieldsButtonsLayout = getChatPlaceLayout();
+        chatAndButtonPlace.add(chatPlace, fieldsButtonsLayout);
+        chatAndButtonPlace.expand(chatPlace);
+        add(channelsLayout, chatAndButtonPlace);
+
+    }
+    // region UI and functions
+    private HorizontalLayout getRoomsLayout() {
+        HorizontalLayout channelModLayout = new HorizontalLayout();
+        channelModLayout.setWidthFull();
+        channelModLayout.setAlignItems(Alignment.END);
+        TextField name = new TextField("Channel Name");
+        Button addChanel = new Button(new Icon(VaadinIcon.PLUS), buttonClickEvent -> validateChannelInfo(name.getValue()));
+        addChanel.setTooltipText("Add new channel");
+        Button refreshChannels = new Button(new Icon(VaadinIcon.REFRESH), buttonClickEvent -> refreshChannels());
+        refreshChannels.setTooltipText("Refresh channels list");
+        channelModLayout.add(name, addChanel, refreshChannels);
+        channelModLayout.expand(name);
+        return channelModLayout;
+    }
+
+    private HorizontalLayout getChatPlaceLayout() {
         TextField message = new TextField("Your Message");
         Button sendButton = new Button(new Icon(VaadinIcon.PAPERPLANE));
         sendButton.setTooltipText("Send message");
@@ -157,40 +211,45 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
             }
             MemoryBuffer buffer = new MemoryBuffer();
             Upload upload = new Upload(buffer);
+            upload.setMaxFileSize(1024 * 1024 * 256);
             upload.setMaxFiles(1);
+            Dialog dialog = new Dialog();
+            dialog.add(new H3("Upload your file"), upload);
+            dialog.open();
             upload.addSucceededListener(succeededEvent -> {
                 String fileName = succeededEvent.getFileName();
                 String mimeType = succeededEvent.getMIMEType();
                 System.out.println(fileName);
                 System.out.println(mimeType);
+                String fileType = mimeType.split("/")[1];
                 try {
-                    byte[] imageBytes = toByteArray(buffer.getInputStream());
-                    MessagesInfo newMessage = MessagesInfo.builder()
-                            .message(imageBytes).messageType("IMAGE").timestamp(LocalDateTime.now())
-                            .componentId(0).senderId(id).chatId(id).build();
-                    addMessage(newMessage, userName);
+                    byte[] bytes = toByteArray(buffer.getInputStream());
+                    if (fileType.equals("png") || fileType.equals("jpg") || fileType.equals("jpeg")) {
+                        sendImage(bytes);
+                        dialog.close();
+                    } else{
+                        sendFile(bytes, fileName);
+                        dialog.close();
+                    }
+
                 } catch (IOException e) {
                     log.error(e.getMessage());
+                    openErrorNotification("Something went wrong please try again");
+                } finally {
+                    fileButton.setEnabled(true);
                 }
             });
-            Dialog dialog = new Dialog();
-            dialog.add(new H3("Upload your file"), upload);
-            dialog.open();
-
+            upload.addFileRejectedListener(fileRejectedEvent -> openErrorNotification("File is too big, max size is 10MB"));
             fileButton.setEnabled(true);
 
         });
-
 
         HorizontalLayout fieldsButtonsLayout = new HorizontalLayout();
         fieldsButtonsLayout.setWidthFull();
         fieldsButtonsLayout.setAlignItems(Alignment.END);
         fieldsButtonsLayout.add(message, fileButton, sendButton);
         fieldsButtonsLayout.expand(message);
-        chatAndButtonPlace.add(chatPlace, fieldsButtonsLayout);
-        chatAndButtonPlace.expand(chatPlace);
-        add(channelsLayout, chatAndButtonPlace);
-
+        return fieldsButtonsLayout;
     }
 
     private void validateChannelInfo(String channel) {
@@ -249,6 +308,12 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                             .g(new byte[]{}).p(new byte[]{}).build();
                     roomsManageService.saveRoom(room);
                     refreshChannels();
+                    JsonAction action = JsonAction.builder().chatName(channel).cipher(null).status("Refresh").senderId(id).g(null).p(null).aOrB(null).build();
+                    try {
+                        newChannelWriter.processMessage(actionMapper.processStringAction(action), String.format("chatlistner.%s", buddy.getId()));
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException(e);
+                    }
                     dialog.close();
                 } else {
                     openErrorNotification("There is no such buddy name!");
@@ -271,6 +336,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
     }
 
     private void refreshMessages() {
+        chatPlace.removeAll();
         List<MessagesInfo> messagesInfos = messagesMenageService.getMessagesByChatId(currentRoom.getId());
         UserInfo buddy = null;
         for (MessagesInfo messagesInfo : messagesInfos) {
@@ -298,12 +364,28 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
 
     }
 
+    private void sendImage(byte[] imageBytes){
+        MessagesInfo newMessage = MessagesInfo.builder()
+                .message(imageBytes).messageType("IMAGE").timestamp(LocalDateTime.now())
+                .componentId(0).senderId(id).chatId(currentRoom.getId()).build();
+        messagesMenageService.saveMessage(newMessage);
+        addMessage(newMessage, userName);
+    }
+
+    private void sendFile(byte[] fileBytes, String fileName){
+        MessagesInfo fileMessage = MessagesInfo.builder()
+                .message(fileBytes).messageType(fileName).chatId(currentRoom.getId())
+                .senderId(id).componentId(0).timestamp(LocalDateTime.now()).build();
+        messagesMenageService.saveMessage(fileMessage);
+        addMessage(fileMessage, userName);
+    }
+
     private Div createMessage(MessagesInfo info, String sender) {
         // div holder
         Div messageDiv = new Div();
         messageDiv.addClassName("message-container");
         String formattedDateTime = info.getTimestamp().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        Span span = new Span(String.format("%s [%s]", sender, formattedDateTime));
+        Span span = new Span(String.format("%s [%s]",  sender, formattedDateTime));
         span.addClassName("sender-name");
         switch (info.getMessageType()) {
             case "TEXT":
@@ -318,25 +400,48 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                 image.addClassName("message-image");
                 messageDiv.add(span, image);
                 break;
-            case "FILE":
-                break;
+//            case "FILE":
+//                StreamResource resourceFile = new StreamResource("file", () -> new ByteArrayInputStream(info.getMessage()));
+//                Anchor anchor = new Anchor(resourceFile, "file");
+//                anchor.getElement().setAttribute("download", true);
+//                anchor.setText("Download file");
+//                anchor.addClassName("message-link");
+//                messageDiv.add(span, anchor);
+//                break;
             default:
+                StreamResource resourceFile = new StreamResource(info.getMessageType(), () -> new ByteArrayInputStream(info.getMessage()));
+                Anchor anchor = new Anchor(resourceFile, info.getMessageType());
+                anchor.getElement().setAttribute("download", true);
+                anchor.setText("Download file: " + info.getMessageType());
+                anchor.addClassName("message-link");
+                messageDiv.add(span, anchor);
                 break;
         }
         // Context menu creation
-        ContextMenu menu = new ContextMenu(messageDiv);
+        ContextMenu menu = new ContextMenu(span);
         menu.getClassNames().add("custom-context-menu");
         menu.setOpenOnClick(true);
-        menu.addItem("Delete");
+        menu.addItem("Delete", menuItemClickEvent -> {
+            Optional<Component> parent = span.getParent();
+            if (parent.isPresent() && parent.get() instanceof Div) {
+                chatPlace.remove(parent.get()); // Удаляем Div из основного контейнера
+                messagesMenageService.deleteMessageById(info.getId(), currentRoom.getId()); // Логика удаления файла на сервере
+            }
+        });
         messageDiv.setId(String.format("%d", info.getId()));
         return messageDiv;
     }
-
+    // endregion
+    // region utils
     @Override
     public void beforeEnter(BeforeEnterEvent beforeEnterEvent) {
         id = Long.parseLong(beforeEnterEvent.getRouteParameters().get("id").orElse(""));
         userName = beforeEnterEvent.getRouteParameters().get("name").orElse("");
         header.setText(String.format("Welcome to chat, %s!", userName));
+        createTopic(String.format("chatlistner.%s", id), 1, (short)1);
+        initializeChannelConsumer();
+        processChatRequests();
+        refreshChannels();
     }
 
     private byte[] toByteArray(InputStream inputStream) throws IOException {
@@ -347,5 +452,63 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
             buffer.write(data, 0, nRead);
         }
         return buffer.toByteArray();
+    }
+    // endregion
+    //
+    private void initializeChannelConsumer(){
+        Properties props = new Properties();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9093");
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "channel reader");
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        channelConsumer = new KafkaConsumer<>(props);
+        channelConsumer.subscribe(Collections.singletonList(String.format("chatlistner.%s", id)));
+    }
+    public static void createTopic(String topicName, int numPartitions, short replicationFactor) {
+        Properties config = new Properties();
+        config.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9093");
+
+        try (AdminClient adminClient = AdminClient.create(config)) {
+            // Проверяем, существует ли топик
+            if (!adminClient.listTopics().names().get().contains(topicName)) {
+                // Создаем новый топик
+                NewTopic newTopic = new NewTopic(topicName, numPartitions, replicationFactor);
+                adminClient.createTopics(Collections.singletonList(newTopic)).all().get();
+                System.out.println("Топик создан: " + topicName);
+            } else {
+                System.out.println("Топик уже существует: " + topicName);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    private void processChatRequests(){
+        UI currentUI = UI.getCurrent();
+        newChannelsCheck.submit(() -> {
+            try {
+                JsonActionParser mapper = new JsonActionParserImpl();
+                boolean isRunning = true;
+                while (isRunning){
+                    ConsumerRecords<String, String> records = channelConsumer.poll(100);
+                    for (ConsumerRecord<String, String> record : records) {
+                        String action = record.value();
+                        JsonAction currentAction = mapper.processJsonAction(action);
+                        System.out.println(currentAction);
+                        if (currentAction.getStatus().equals("Refresh")){
+                            currentUI.access(() -> {
+                                refreshChannels();
+                                Dialog dial = new Dialog();
+                                dial.add(new Span("Received action: " + currentAction));
+                                dial.open();
+                            });
+                        }
+
+                    }
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 }

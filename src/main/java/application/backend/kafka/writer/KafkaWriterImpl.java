@@ -7,6 +7,7 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.stereotype.Service;
 
 import java.util.Properties;
@@ -15,19 +16,19 @@ import java.util.Properties;
 @Service
 public class KafkaWriterImpl implements KafkaWriter, ConfigLoader {
 
-    private final KafkaProducer<byte[], byte[]> producer;
+    private final KafkaProducer<String, String> producer;
 
     public KafkaWriterImpl() {
         Config config = ConfigLoader.load();
         Properties props = new Properties();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, config.getString("kafka.bootstrap.Servers"));
-        props.put(ProducerConfig.CLIENT_ID_CONFIG, config.getString("kafka.client.id"));
+//        props.put(ProducerConfig.CLIENT_ID_CONFIG, config.getString("kafka.client.id"));
         props.put("auto.create.topics.enable", "true");
-        producer = new KafkaProducer<>(props, new ByteArraySerializer(), new ByteArraySerializer());
+        producer = new KafkaProducer<>(props, new StringSerializer(), new StringSerializer());
     }
 
     @Override
-    public void processMessage(byte[] message, String topic) {
+    public void processMessage(String message, String topic) {
         log.info("Sending message to: {}", topic);
         try {
             producer.send(new ProducerRecord<>(topic, message));
