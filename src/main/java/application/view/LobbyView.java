@@ -102,6 +102,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
 
     // Threads
     private ExecutorService newChannelsCheck = Executors.newSingleThreadExecutor();
+    private ExecutorService messageTopicCheck = Executors.newSingleThreadExecutor();
     // endregion
 
     public LobbyView() {
@@ -127,17 +128,30 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
             }
             return new Span("");
         })).setHeader("Buddy Name");
+
+
+        // chat layout
+        VerticalLayout chatAndButtonPlace = new VerticalLayout();
+        chatAndButtonPlace.setWidth("80%");
+        chatPlace = new VerticalLayout();
+        chatPlace.addClassName("scrollable-layout");
+
+        chatPlace.setHeightFull();
         channelsGrid.addColumn(new ComponentRenderer<>(person -> {
             Button deleteButton = new Button("Delete chat");
             deleteButton.setTooltipText("Delete channel for all users");
             deleteButton.addClickListener(click -> {
                 // Логика удаления
                 if (person != null) {
+                    if (person.getId() == id) {
+                        chatPlace.removeAll();
+                        currentRoom = null;
+                    }
                     cipherManageService.deleteCipherInfo(person.getCipherInfoId());
                     messagesMenageService.deleteAllMessagesByChatId(person.getId());
                     roomsManageService.deleteRoom(person.getId());
                     long otherUser = id == person.getLeftUser() ? person.getRightUser() : person.getLeftUser();
-                    JsonAction action = JsonAction.builder().senderId(id).status("delete-channel").build();
+                    JsonAction action = JsonAction.builder().senderId(id).status("delete-channel").chatId(person.getId()).chatName(person.getTitleLeft()).build();
                     try {
                         newChannelWriter.processMessage(actionMapper.processStringAction(action), String.format("chatlistner.%s", otherUser));
                     } catch (JsonProcessingException e) {
@@ -161,14 +175,6 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         channelsLayout.add(header, channelModLayout, channelsGrid);
         channelsLayout.expand(channelsGrid);
         channelsLayout.expand(channelModLayout);
-
-        // chat layout
-        VerticalLayout chatAndButtonPlace = new VerticalLayout();
-        chatAndButtonPlace.setWidth("80%");
-        chatPlace = new VerticalLayout();
-        chatPlace.addClassName("scrollable-layout");
-
-        chatPlace.setHeightFull();
         // buttons and fields
         HorizontalLayout fieldsButtonsLayout = getChatPlaceLayout();
         chatAndButtonPlace.add(chatPlace, fieldsButtonsLayout);
@@ -407,14 +413,6 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                 image.addClassName("message-image");
                 messageDiv.add(span, image);
                 break;
-//            case "FILE":
-//                StreamResource resourceFile = new StreamResource("file", () -> new ByteArrayInputStream(info.getMessage()));
-//                Anchor anchor = new Anchor(resourceFile, "file");
-//                anchor.getElement().setAttribute("download", true);
-//                anchor.setText("Download file");
-//                anchor.addClassName("message-link");
-//                messageDiv.add(span, anchor);
-//                break;
             default:
                 StreamResource resourceFile = new StreamResource(info.getMessageType(), () -> new ByteArrayInputStream(info.getMessage()));
                 Anchor anchor = new Anchor(resourceFile, info.getMessageType());
@@ -528,11 +526,19 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                                 currentAction.setStatus("accepted");
                                 newChannelWriter.processMessage(mapper.processStringAction(currentAction), String.format("chatlistner.%s", senderId));
 
-                            } else if(currentAction.getStatus().equals("accepted") || currentAction.getStatus().equals("delete-channel")){
+                            } else if(currentAction.getStatus().equals("accepted")){
                                 currentUI.access(() -> {
                                     refreshChannels();
                                     Dialog dial = new Dialog();
                                     dial.add(new Span("Received action: " + currentAction));
+                                    dial.open();
+                                });
+                            } else if (currentAction.getStatus().equals("delete-channel")){
+                                currentUI.access(() -> {
+                                    chatPlace.removeAll();
+                                    refreshChannels();
+                                    Dialog dial = new Dialog();
+                                    dial.add(new Span("User " + userRegistrationService.getUserInfoById(currentAction.getSenderId()).getUserName() + " has deleted chat: " + currentAction.getChatName()));
                                     dial.open();
                                 });
                             }

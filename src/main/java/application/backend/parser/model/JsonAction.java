@@ -13,6 +13,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class JsonAction {
     private long senderId;
+    private long chatId;
     private String chatName;
     private CipherInfo cipher;
     // Request, Sucess-create
