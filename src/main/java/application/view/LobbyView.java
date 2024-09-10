@@ -11,6 +11,7 @@ import application.backend.parser.JsonMessageParser;
 import application.backend.parser.impl.JsonActionParserImpl;
 import application.backend.parser.impl.JsonMessageParserImpl;
 import application.backend.parser.model.JsonAction;
+import application.backend.parser.model.JsonMessage;
 import application.backend.service.CipherManageService;
 import application.backend.service.MessagesMenageService;
 import application.backend.service.RoomsManageService;
@@ -85,6 +86,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
     // user info
     private long id;
     private String userName;
+    private boolean isPersonDisconnected = true;
     // ui
     private final Grid<RoomsInfo> channelsGrid;
     private final VerticalLayout chatPlace;
@@ -95,6 +97,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
     // Kafka
     private KafkaWriter newChannelWriter = new KafkaWriterImpl();
     private KafkaConsumer<String, String> channelConsumer;
+    private KafkaConsumer<String, String> messageConsumer;
 
     // Json
     private JsonActionParser actionMapper = new JsonActionParserImpl();
@@ -102,7 +105,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
 
     // Threads
     private ExecutorService newChannelsCheck = Executors.newSingleThreadExecutor();
-    private ExecutorService messageTopicCheck = Executors.newSingleThreadExecutor();
+    private ExecutorService newMessageCheck = Executors.newSingleThreadExecutor();
     // endregion
 
     public LobbyView() {
@@ -122,14 +125,12 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         channelsGrid.setHeightFull();
         channelsGrid.addColumn(RoomsInfo::getTitleLeft).setHeader("Channel Name");
         channelsGrid.addColumn(new ComponentRenderer<>(room -> {
-            if (room != null){
+            if (room != null) {
                 long otherUser = id == room.getLeftUser() ? room.getRightUser() : room.getLeftUser();
                 return new Span(userRegistrationService.getUserInfoById(otherUser).getUserName());
             }
             return new Span("");
         })).setHeader("Buddy Name");
-
-
         // chat layout
         VerticalLayout chatAndButtonPlace = new VerticalLayout();
         chatAndButtonPlace.setWidth("80%");
@@ -143,7 +144,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
             deleteButton.addClickListener(click -> {
                 // Логика удаления
                 if (person != null) {
-                    if (person.getId() == id) {
+                    if (person.getId() == currentRoom.getId()) {
                         chatPlace.removeAll();
                         currentRoom = null;
                     }
@@ -155,7 +156,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                     try {
                         newChannelWriter.processMessage(actionMapper.processStringAction(action), String.format("chatlistner.%s", otherUser));
                     } catch (JsonProcessingException e) {
-                        throw new RuntimeException(e);
+                        log.error(e.getMessage());
                     }
                     refreshChannels();
                 } else {
@@ -167,7 +168,22 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         channelsGrid.addSelectionListener(selection -> {
             Optional<RoomsInfo> optionalPerson = selection.getFirstSelectedItem();
             optionalPerson.ifPresent(channel -> {
+                if(currentRoom != null){
+                    JsonMessage disconn = JsonMessage.builder().senderId(id).chatId(currentRoom.getId()).messageType("disconnected").build();
+                    isPersonDisconnected = true;
+                    try {
+                        newChannelWriter.processMessage(messageMapper.processJsonMessage(disconn), String.format("chatMessages-%s", currentRoom.getId()));
+                    } catch (JsonProcessingException e) {
+                        log.error(e.getMessage());
+                    }
+                }
                 currentRoom = channel;
+                JsonMessage message = JsonMessage.builder().messageType("connected").senderId(id).chatId(currentRoom.getId()).build();
+                try {
+                    newChannelWriter.processMessage(messageMapper.processJsonMessage(message), String.format("chatMessages-%s", currentRoom.getId()));
+                } catch (JsonProcessingException e) {
+                    log.error(e.getMessage());
+                }
                 // TODO: kafka active message send
                 refreshMessages();
             });
@@ -182,6 +198,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         add(channelsLayout, chatAndButtonPlace);
 
     }
+
     // region UI and functions
     private HorizontalLayout getRoomsLayout() {
         HorizontalLayout channelModLayout = new HorizontalLayout();
@@ -206,20 +223,30 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         sendButton.setDisableOnClick(true);
         fileButton.setDisableOnClick(true);
         sendButton.addClickListener(action -> {
-
-            if (currentRoom == null) {
+            sendButton.setEnabled(true);
+            if (currentRoom == null ) {
                 openErrorNotification("Please select a room");
-                sendButton.setEnabled(true);
                 return;
             }
-            sendMessage(message.getValue());
-            sendButton.setEnabled(true);
+            if (isPersonDisconnected){
+                openErrorNotification("All users should be in chat to exchange messages!");
+                return;
+            }
+            try {
+                sendMessage(message.getValue());
+            } catch (JsonProcessingException e) {
+                log.error(e.getMessage());
+            }
             message.clear();
         });
 
         fileButton.addClickListener(action -> {
             if (currentRoom == null) {
                 openErrorNotification("Please select a room");
+                return;
+            }
+            if (isPersonDisconnected){
+                openErrorNotification("All users should be in chat to exchange messages!");
                 return;
             }
             MemoryBuffer buffer = new MemoryBuffer();
@@ -240,7 +267,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                     if (fileType.equals("png") || fileType.equals("jpg") || fileType.equals("jpeg")) {
                         sendImage(bytes);
                         dialog.close();
-                    } else{
+                    } else {
                         sendFile(bytes, fileName);
                         dialog.close();
                     }
@@ -368,29 +395,35 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         chatPlace.add(createMessage(messagesInfo, sender));
     }
 
-    private void sendMessage(String message) {
+    private void sendMessage(String message) throws JsonProcessingException {
         MessagesInfo newMessage = MessagesInfo.builder()
                 .messageType("TEXT").message(message.getBytes(StandardCharsets.UTF_8))
                 .senderId(id).chatId(currentRoom.getId()).componentId(0).timestamp(LocalDateTime.now()).build();
-        messagesMenageService.saveMessage(newMessage);
+        newMessage = messagesMenageService.saveMessage(newMessage);
+        JsonMessage kafkaMsg = makeJsonMessage(newMessage);
         addMessage(newMessage, userName);
+        newChannelWriter.processMessage(messageMapper.processJsonMessage(kafkaMsg), String.format("chatMessages-%s", newMessage.getChatId()));
 
     }
 
-    private void sendImage(byte[] imageBytes){
+    private void sendImage(byte[] imageBytes) throws JsonProcessingException {
         MessagesInfo newMessage = MessagesInfo.builder()
                 .message(imageBytes).messageType("IMAGE").timestamp(LocalDateTime.now())
                 .componentId(0).senderId(id).chatId(currentRoom.getId()).build();
-        messagesMenageService.saveMessage(newMessage);
+        newMessage = messagesMenageService.saveMessage(newMessage);
+        JsonMessage kafkaMsg = makeJsonMessage(newMessage);
         addMessage(newMessage, userName);
+        newChannelWriter.processMessage(messageMapper.processJsonMessage(kafkaMsg), String.format("chatMessages-%s", newMessage.getChatId()));
     }
 
-    private void sendFile(byte[] fileBytes, String fileName){
+    private void sendFile(byte[] fileBytes, String fileName) throws JsonProcessingException {
         MessagesInfo fileMessage = MessagesInfo.builder()
                 .message(fileBytes).messageType(fileName).chatId(currentRoom.getId())
                 .senderId(id).componentId(0).timestamp(LocalDateTime.now()).build();
-        messagesMenageService.saveMessage(fileMessage);
+        fileMessage = messagesMenageService.saveMessage(fileMessage);
+        JsonMessage kafkaMsg = makeJsonMessage(fileMessage);
         addMessage(fileMessage, userName);
+        newChannelWriter.processMessage(messageMapper.processJsonMessage(kafkaMsg), String.format("chatMessages-%s", fileMessage.getChatId()));
     }
 
     private Div createMessage(MessagesInfo info, String sender) {
@@ -398,7 +431,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         Div messageDiv = new Div();
         messageDiv.addClassName("message-container");
         String formattedDateTime = info.getTimestamp().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        Span span = new Span(String.format("%s [%s]",  sender, formattedDateTime));
+        Span span = new Span(String.format("%s [%s]", sender, formattedDateTime));
         span.addClassName("sender-name");
         switch (info.getMessageType()) {
             case "TEXT":
@@ -436,6 +469,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         messageDiv.setId(String.format("%d", info.getId()));
         return messageDiv;
     }
+
     // endregion
     // region utils
     @Override
@@ -443,7 +477,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         id = Long.parseLong(beforeEnterEvent.getRouteParameters().get("id").orElse(""));
         userName = beforeEnterEvent.getRouteParameters().get("name").orElse("");
         header.setText(String.format("Welcome to chat, %s!", userName));
-        createTopic(String.format("chatlistner.%s", id), 1, (short)1);
+        createTopic(String.format("chatlistner.%s", id), 1, (short) 1);
         initializeChannelConsumer();
         processChatRequests();
         refreshChannels();
@@ -458,17 +492,28 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         }
         return buffer.toByteArray();
     }
+
     // endregion
     //
-    private void initializeChannelConsumer(){
+    private KafkaConsumer<String, String> initializeConsumer(String groupId, String topic) {
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9093");
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "channel reader");
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        channelConsumer = new KafkaConsumer<>(props);
-        channelConsumer.subscribe(Collections.singletonList(String.format("chatlistner.%s", id)));
+        KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
+        consumer.subscribe(Collections.singletonList(topic));
+        return consumer;
+    }
+
+    private void initializeChannelConsumer() {
+        channelConsumer = initializeConsumer("channel reader", String.format("chatlistner.%s", id));
+
+    }
+
+    private void initializeMessageConsumer() {
+        messageConsumer = initializeConsumer(String.format("chat-%s", currentRoom.getId()), String.format("chatMessages-%s", currentRoom.getId()));
     }
 
     public static void createTopic(String topicName, int numPartitions, short replicationFactor) {
@@ -486,36 +531,37 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                 System.out.println("Топик уже существует: " + topicName);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error(e.getMessage(), e);
         }
     }
 
-    private void processChatRequests(){
+    private void processChatRequests() {
         UI currentUI = UI.getCurrent();
         newChannelsCheck.submit(() -> {
             try {
                 JsonActionParser mapper = new JsonActionParserImpl();
                 boolean isRunning = true;
-                while (isRunning){
+                while (isRunning) {
                     ConsumerRecords<String, String> records = channelConsumer.poll(100);
                     for (ConsumerRecord<String, String> record : records) {
                         String action = record.value();
-                        if (!action.startsWith("{")){
+                        if (!action.startsWith("{")) {
                             continue;
                         }
                         JsonAction currentAction = mapper.processJsonAction(action);
 
                         System.out.println(currentAction);
-                        if(currentAction.getSenderId() != id){
-                            if (currentAction.getStatus().equals("new-channel") && currentAction.getP() != null){
+                        if (currentAction.getSenderId() != id) {
+                            if (currentAction.getStatus().equals("new-channel") && currentAction.getP() != null) {
 
                                 long senderId = currentAction.getSenderId();
 
-                                roomsManageService.saveRoom(RoomsInfo.builder()
+                                RoomsInfo newRoom = roomsManageService.saveRoom(RoomsInfo.builder()
                                         .p(currentAction.getP()).g(currentAction.getG())
                                         .titleRight(currentAction.getChatName()).titleLeft(currentAction.getChatName())
                                         .rightUser(id).leftUser(senderId)
                                         .cipherInfoId(currentAction.getCipher().getId()).build());
+                                createTopic(String.format("chatMessages-%s", newRoom.getId()), 1, (short) 1);
                                 currentUI.access(() -> {
                                     refreshChannels();
                                     Dialog dial = new Dialog();
@@ -526,15 +572,21 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                                 currentAction.setStatus("accepted");
                                 newChannelWriter.processMessage(mapper.processStringAction(currentAction), String.format("chatlistner.%s", senderId));
 
-                            } else if(currentAction.getStatus().equals("accepted")){
+                            } else if (currentAction.getStatus().equals("accepted")) {
                                 currentUI.access(() -> {
                                     refreshChannels();
                                     Dialog dial = new Dialog();
                                     dial.add(new Span("Received action: " + currentAction));
                                     dial.open();
                                 });
-                            } else if (currentAction.getStatus().equals("delete-channel")){
+                            } else if (currentAction.getStatus().equals("delete-channel")) {
                                 currentUI.access(() -> {
+                                    String actionMessage;
+                                    if (currentRoom != null && currentRoom.getId() == currentAction.getChatId()){
+                                        chatPlace.removeAll();
+                                        refreshChannels();
+                                        Notification.show("Current chat has been deleted by other user", 3000, Notification.Position.BOTTOM_END);
+                                    }
                                     chatPlace.removeAll();
                                     refreshChannels();
                                     Dialog dial = new Dialog();
@@ -549,5 +601,58 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    private void processMessages() {
+        UI currentUI = UI.getCurrent();
+        newChannelsCheck.submit(() -> {
+            try {
+                JsonMessageParser mapper = new JsonMessageParserImpl();
+                boolean isRunning = true;
+                while (isRunning) {
+                    ConsumerRecords<String, String> records = channelConsumer.poll(100);
+                    for (ConsumerRecord<String, String> record : records) {
+                        String action = record.value();
+                        if (!action.startsWith("{")) {
+                            continue;
+                        }
+                        JsonMessage message = mapper.processStringMessage(action);
+                        if (message.getSenderId() != id) {
+                            switch (message.getMessageType()){
+                                case "disconnected":
+                                    isPersonDisconnected = true;
+                                    break;
+                                case "connected":
+                                    isPersonDisconnected = false;
+                                    break;
+                                case "delete":
+                                    currentUI.access(() -> {
+                                        Optional<Component> divToDelete = chatPlace.getChildren().filter(child -> String.format("%s", message.getId()).equals(child.getId().orElse(null))).findFirst();
+                                        divToDelete.ifPresent(chatPlace::remove);
+                                    });
+                                    break;
+                                default:
+                                    MessagesInfo msg = MessagesInfo.builder()
+                                            .messageType(message.getMessageType()).message(message.getMessage()).chatId(message.getChatId())
+                                            .id(message.getId()).componentId(0).senderId(message.getSenderId()).timestamp(message.getTimestamp())
+                                            .build();
+                                    currentUI.access(() -> addMessage(msg, userRegistrationService.getUserInfoById(msg.getSenderId()).getUserName()));
+                                    break;
+
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.error(e.getMessage(), e);
+            }
+        });
+    }
+
+    private JsonMessage makeJsonMessage(MessagesInfo messagesInfo){
+        return JsonMessage.builder()
+                .message(messagesInfo.getMessage()).id(messagesInfo.getId()).messageType(messagesInfo.getMessageType())
+                .timestamp(messagesInfo.getTimestamp()).chatId(messagesInfo.getChatId()).senderId(messagesInfo.getSenderId())
+                .build();
     }
 }

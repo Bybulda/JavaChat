@@ -27,7 +27,7 @@ public class RoomsManageService {
     }
 
     @Transactional
-    public void saveRoom(RoomsInfo room){
-        roomsInfoRepository.save(room);
+    public RoomsInfo saveRoom(RoomsInfo room){
+        return roomsInfoRepository.save(room);
     }
 }
