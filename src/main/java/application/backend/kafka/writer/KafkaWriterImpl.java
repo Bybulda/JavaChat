@@ -22,7 +22,6 @@ public class KafkaWriterImpl implements KafkaWriter, ConfigLoader {
         Config config = ConfigLoader.load();
         Properties props = new Properties();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, config.getString("kafka.bootstrap.Servers"));
-//        props.put(ProducerConfig.CLIENT_ID_CONFIG, config.getString("kafka.client.id"));
         props.put("auto.create.topics.enable", "true");
         producer = new KafkaProducer<>(props, new StringSerializer(), new StringSerializer());
     }

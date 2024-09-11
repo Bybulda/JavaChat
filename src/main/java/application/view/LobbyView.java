@@ -650,7 +650,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         if (!newMessageCheck.isShutdown()){
             newMessageCheck.shutdownNow();
         }
-        messageConsumer.close();
+//        messageConsumer.close();
         messageConsumer = null;
     }
 
