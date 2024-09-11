@@ -41,6 +41,7 @@ import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.StreamResource;
+import jakarta.annotation.PreDestroy;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -66,6 +67,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @Route("lobby/:id/:name")
 @PageTitle("Lobby")
@@ -86,7 +88,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
     // user info
     private long id;
     private String userName;
-    private boolean isPersonDisconnected = true;
+    private volatile boolean isPersonDisconnected = true;
     // ui
     private final Grid<RoomsInfo> channelsGrid;
     private final VerticalLayout chatPlace;
@@ -105,7 +107,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
 
     // Threads
     private ExecutorService newChannelsCheck = Executors.newSingleThreadExecutor();
-    private ExecutorService newMessageCheck = Executors.newSingleThreadExecutor();
+    private ExecutorService newMessageCheck;
     // endregion
 
     public LobbyView() {
@@ -169,6 +171,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
             Optional<RoomsInfo> optionalPerson = selection.getFirstSelectedItem();
             optionalPerson.ifPresent(channel -> {
                 if(currentRoom != null){
+                    closeThreadMessages();
                     JsonMessage disconn = JsonMessage.builder().senderId(id).chatId(currentRoom.getId()).messageType("disconnected").build();
                     isPersonDisconnected = true;
                     try {
@@ -181,10 +184,11 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                 JsonMessage message = JsonMessage.builder().messageType("connected").senderId(id).chatId(currentRoom.getId()).build();
                 try {
                     newChannelWriter.processMessage(messageMapper.processJsonMessage(message), String.format("chatMessages-%s", currentRoom.getId()));
+                    createThreadInitializeConsumer();
+                    processMessages();
                 } catch (JsonProcessingException e) {
                     log.error(e.getMessage());
                 }
-                // TODO: kafka active message send
                 refreshMessages();
             });
         });
@@ -241,6 +245,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         });
 
         fileButton.addClickListener(action -> {
+            fileButton.setEnabled(true);
             if (currentRoom == null) {
                 openErrorNotification("Please select a room");
                 return;
@@ -259,8 +264,6 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
             upload.addSucceededListener(succeededEvent -> {
                 String fileName = succeededEvent.getFileName();
                 String mimeType = succeededEvent.getMIMEType();
-                System.out.println(fileName);
-                System.out.println(mimeType);
                 String fileType = mimeType.split("/")[1];
                 try {
                     byte[] bytes = toByteArray(buffer.getInputStream());
@@ -275,8 +278,6 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                 } catch (IOException e) {
                     log.error(e.getMessage());
                     openErrorNotification("Something went wrong please try again");
-                } finally {
-                    fileButton.setEnabled(true);
                 }
             });
             upload.addFileRejectedListener(fileRejectedEvent -> openErrorNotification("File is too big, max size is 10MB"));
@@ -341,13 +342,6 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                     CipherInfo info = CipherInfo.builder().mode(chatMode).algorithm(chatCipher).padding(chatPadding)
                             .blockSizeBits(128).keySizeBits(96).iv(iv).build();
                     CipherInfo newInfo = cipherManageService.saveCipherInfo(info);
-                    RoomsInfo room = RoomsInfo.builder().
-                            cipherInfoId(newInfo.getId())
-                            .leftUser(id)
-                            .rightUser(buddy.getId()).titleRight(channel).titleLeft(channel)
-                            .g(new byte[]{}).p(new byte[]{}).build();
-//                    roomsManageService.saveRoom(room);
-                    refreshChannels();
                     JsonAction action = JsonAction.builder().chatName(channel).cipher(newInfo).status("new-channel").senderId(id).g(new byte[]{1}).p(new byte[]{1}).aOrB(new byte[]{1}).build();
                     try {
                         newChannelWriter.processMessage(actionMapper.processStringAction(action), String.format("chatlistner.%s", buddy.getId()));
@@ -494,7 +488,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
     }
 
     // endregion
-    //
+    // region kafka
     private KafkaConsumer<String, String> initializeConsumer(String groupId, String topic) {
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9093");
@@ -513,7 +507,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
     }
 
     private void initializeMessageConsumer() {
-        messageConsumer = initializeConsumer(String.format("chat-%s", currentRoom.getId()), String.format("chatMessages-%s", currentRoom.getId()));
+        messageConsumer = initializeConsumer(String.format("chat-%s", id), String.format("chatMessages-%s", currentRoom.getId()));
     }
 
     public static void createTopic(String topicName, int numPartitions, short replicationFactor) {
@@ -561,6 +555,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                                         .titleRight(currentAction.getChatName()).titleLeft(currentAction.getChatName())
                                         .rightUser(id).leftUser(senderId)
                                         .cipherInfoId(currentAction.getCipher().getId()).build());
+                                // TODO: make topic after room
                                 createTopic(String.format("chatMessages-%s", newRoom.getId()), 1, (short) 1);
                                 currentUI.access(() -> {
                                     refreshChannels();
@@ -605,12 +600,12 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
 
     private void processMessages() {
         UI currentUI = UI.getCurrent();
-        newChannelsCheck.submit(() -> {
+        newMessageCheck.submit(() -> {
             try {
                 JsonMessageParser mapper = new JsonMessageParserImpl();
                 boolean isRunning = true;
                 while (isRunning) {
-                    ConsumerRecords<String, String> records = channelConsumer.poll(100);
+                    ConsumerRecords<String, String> records = messageConsumer.poll(100);
                     for (ConsumerRecord<String, String> record : records) {
                         String action = record.value();
                         if (!action.startsWith("{")) {
@@ -632,10 +627,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                                     });
                                     break;
                                 default:
-                                    MessagesInfo msg = MessagesInfo.builder()
-                                            .messageType(message.getMessageType()).message(message.getMessage()).chatId(message.getChatId())
-                                            .id(message.getId()).componentId(0).senderId(message.getSenderId()).timestamp(message.getTimestamp())
-                                            .build();
+                                    MessagesInfo msg = getMessageFromJsonMessage(message);
                                     currentUI.access(() -> addMessage(msg, userRegistrationService.getUserInfoById(msg.getSenderId()).getUserName()));
                                     break;
 
@@ -645,14 +637,57 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                 }
             } catch (Exception e) {
                 log.error(e.getMessage(), e);
+            } finally {
+                messageConsumer.close();
+                messageConsumer = null;
             }
         });
     }
+
+
+    private void closeThreadMessages(){
+        newMessageCheck.shutdown();
+        if (!newMessageCheck.isShutdown()){
+            newMessageCheck.shutdownNow();
+        }
+        messageConsumer.close();
+        messageConsumer = null;
+    }
+
+    private void createThreadInitializeConsumer(){
+        newMessageCheck = Executors.newSingleThreadExecutor();
+        initializeMessageConsumer();
+    }
+    // endregion
 
     private JsonMessage makeJsonMessage(MessagesInfo messagesInfo){
         return JsonMessage.builder()
                 .message(messagesInfo.getMessage()).id(messagesInfo.getId()).messageType(messagesInfo.getMessageType())
                 .timestamp(messagesInfo.getTimestamp()).chatId(messagesInfo.getChatId()).senderId(messagesInfo.getSenderId())
                 .build();
+    }
+
+    private MessagesInfo getMessageFromJsonMessage(JsonMessage message){
+        return MessagesInfo.builder()
+                .message(message.getMessage()).messageType(message.getMessageType()).timestamp(message.getTimestamp())
+                .senderId(message.getSenderId()).chatId(message.getId()).componentId(0).build();
+    }
+
+    @PreDestroy
+    private void destroyer(){
+        newChannelWriter.close();
+        if (channelConsumer != null){
+            newChannelsCheck.shutdown();
+            if (newChannelsCheck.isShutdown()){
+                channelConsumer.close();
+            }
+
+        }
+        if (messageConsumer != null){
+            newMessageCheck.shutdown();
+            if (newMessageCheck.isShutdown()){
+                messageConsumer.close();
+            }
+        }
     }
 }

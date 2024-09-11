@@ -65,6 +65,7 @@ dependencies {
 
     // JSON Processing
     implementation 'com.fasterxml.jackson.core:jackson-core:2.14.2'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.14.2'
 
     // Testing
     testImplementation platform('org.junit:junit-bom:5.10.0')
