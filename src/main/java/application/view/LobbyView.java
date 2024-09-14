@@ -89,6 +89,8 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
     private long id;
     private String userName;
     private volatile boolean isPersonDisconnected = true;
+
+    private final UI currentUI = UI.getCurrent();
     // ui
     private final Grid<RoomsInfo> channelsGrid;
     private final VerticalLayout chatPlace;
@@ -108,6 +110,8 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
     // Threads
     private ExecutorService newChannelsCheck = Executors.newSingleThreadExecutor();
     private ExecutorService newMessageCheck;
+    private volatile boolean isRunningMessages = false;
+    private volatile boolean isRunningChannels = false;
     // endregion
 
     public LobbyView() {
@@ -146,8 +150,10 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
             deleteButton.addClickListener(click -> {
                 // Логика удаления
                 if (person != null) {
-                    if (person.getId() == currentRoom.getId()) {
+                    if (currentRoom != null && person.getId() == currentRoom.getId()) {
                         chatPlace.removeAll();
+                        isPersonDisconnected = true;
+                        closeThreadMessages();
                         currentRoom = null;
                     }
                     cipherManageService.deleteCipherInfo(person.getCipherInfoId());
@@ -170,12 +176,14 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         channelsGrid.addSelectionListener(selection -> {
             Optional<RoomsInfo> optionalPerson = selection.getFirstSelectedItem();
             optionalPerson.ifPresent(channel -> {
+                isPersonDisconnected = true;
                 if(currentRoom != null){
                     closeThreadMessages();
                     JsonMessage disconn = JsonMessage.builder().senderId(id).chatId(currentRoom.getId()).messageType("disconnected").build();
-                    isPersonDisconnected = true;
+//                    isPersonDisconnected = true;
                     try {
                         newChannelWriter.processMessage(messageMapper.processJsonMessage(disconn), String.format("chatMessages-%s", currentRoom.getId()));
+                        log.info("Message sent {}: {}", userName, disconn);
                     } catch (JsonProcessingException e) {
                         log.error(e.getMessage());
                     }
@@ -383,6 +391,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                 addMessage(messagesInfo, userName);
             }
         }
+        printChatIds();
     }
 
     private void addMessage(MessagesInfo messagesInfo, String sender) {
@@ -420,6 +429,10 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         newChannelWriter.processMessage(messageMapper.processJsonMessage(kafkaMsg), String.format("chatMessages-%s", fileMessage.getChatId()));
     }
 
+    private void printChatIds(){
+        chatPlace.getChildren().forEach(child -> child.getId().ifPresent(log::info));
+    }
+
     private Div createMessage(MessagesInfo info, String sender) {
         // div holder
         Div messageDiv = new Div();
@@ -449,6 +462,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                 messageDiv.add(span, anchor);
                 break;
         }
+        messageDiv.setId(String.format("%d", info.getId()));
         // Context menu creation
         ContextMenu menu = new ContextMenu(span);
         menu.getClassNames().add("custom-context-menu");
@@ -457,10 +471,16 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
             Optional<Component> parent = span.getParent();
             if (parent.isPresent() && parent.get() instanceof Div) {
                 chatPlace.remove(parent.get()); // Удаляем Div из основного контейнера
+                long messageId;
+                JsonMessage deleteMessage = JsonMessage.builder().id(info.getId()).senderId(id).messageType("delete").build();
+                try {
+                    newChannelWriter.processMessage(messageMapper.processJsonMessage(deleteMessage), "chatMessages-" + currentRoom.getId());
+                } catch (JsonProcessingException e) {
+                    log.error(e.getMessage());
+                }
                 messagesMenageService.deleteMessageById(info.getId(), currentRoom.getId()); // Логика удаления файла на сервере
             }
         });
-        messageDiv.setId(String.format("%d", info.getId()));
         return messageDiv;
     }
 
@@ -530,12 +550,11 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
     }
 
     private void processChatRequests() {
-        UI currentUI = UI.getCurrent();
         newChannelsCheck.submit(() -> {
             try {
                 JsonActionParser mapper = new JsonActionParserImpl();
-                boolean isRunning = true;
-                while (isRunning) {
+                isRunningChannels = true;
+                while (isRunningChannels) {
                     ConsumerRecords<String, String> records = channelConsumer.poll(100);
                     for (ConsumerRecord<String, String> record : records) {
                         String action = record.value();
@@ -555,7 +574,6 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                                         .titleRight(currentAction.getChatName()).titleLeft(currentAction.getChatName())
                                         .rightUser(id).leftUser(senderId)
                                         .cipherInfoId(currentAction.getCipher().getId()).build());
-                                // TODO: make topic after room
                                 createTopic(String.format("chatMessages-%s", newRoom.getId()), 1, (short) 1);
                                 currentUI.access(() -> {
                                     refreshChannels();
@@ -576,8 +594,10 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                                 });
                             } else if (currentAction.getStatus().equals("delete-channel")) {
                                 currentUI.access(() -> {
-                                    String actionMessage;
                                     if (currentRoom != null && currentRoom.getId() == currentAction.getChatId()){
+                                        currentRoom = null;
+                                        isPersonDisconnected = true;
+                                        closeThreadMessages();
                                         chatPlace.removeAll();
                                         refreshChannels();
                                         Notification.show("Current chat has been deleted by other user", 3000, Notification.Position.BOTTOM_END);
@@ -593,18 +613,22 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                     }
                 }
             } catch (Exception e) {
-                throw new RuntimeException(e);
+                log.error(e.getMessage(), e);
+            } finally{
+                if(channelConsumer != null) {
+                    channelConsumer.close();
+                    channelConsumer = null;
+                }
             }
         });
     }
 
     private void processMessages() {
-        UI currentUI = UI.getCurrent();
         newMessageCheck.submit(() -> {
             try {
                 JsonMessageParser mapper = new JsonMessageParserImpl();
-                boolean isRunning = true;
-                while (isRunning) {
+                isRunningMessages = true;
+                while (isRunningMessages) {
                     ConsumerRecords<String, String> records = messageConsumer.poll(100);
                     for (ConsumerRecord<String, String> record : records) {
                         String action = record.value();
@@ -612,17 +636,21 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                             continue;
                         }
                         JsonMessage message = mapper.processStringMessage(action);
+                        log.info("Recieved message for user {}: {}", userName, message);
                         if (message.getSenderId() != id) {
                             switch (message.getMessageType()){
                                 case "disconnected":
-                                    isPersonDisconnected = true;
+                                    currentUI.access(() -> isPersonDisconnected = true);
                                     break;
                                 case "connected":
-                                    isPersonDisconnected = false;
+                                    currentUI.access(() -> isPersonDisconnected = false);
                                     break;
                                 case "delete":
                                     currentUI.access(() -> {
-                                        Optional<Component> divToDelete = chatPlace.getChildren().filter(child -> String.format("%s", message.getId()).equals(child.getId().orElse(null))).findFirst();
+                                        log.info("deletinf messege: {}", message.getId());
+                                        Optional<Component> divToDelete = chatPlace.getChildren().filter(child -> String.format("%d", message.getId()).equals(child.getId().orElse(null))).findFirst();
+                                        chatPlace.getChildren().forEach(child -> child.getId().ifPresent(log::info));
+                                        //                                        Optional<Component> test =
                                         divToDelete.ifPresent(chatPlace::remove);
                                     });
                                     break;
@@ -638,20 +666,40 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
             } catch (Exception e) {
                 log.error(e.getMessage(), e);
             } finally {
-                messageConsumer.close();
-                messageConsumer = null;
+                if(messageConsumer != null){
+                    messageConsumer.close();
+                    messageConsumer = null;
+                }
             }
         });
     }
 
 
     private void closeThreadMessages(){
-        newMessageCheck.shutdown();
-        if (!newMessageCheck.isShutdown()){
+        isRunningMessages = false;
+        newMessageCheck.shutdown(); // Остановить ExecutorService
+        try {
+            if (!newMessageCheck.awaitTermination(5, TimeUnit.SECONDS)) {
+                newMessageCheck.shutdownNow();  // Принудительная остановка, если поток не завершился
+            }
+        } catch (InterruptedException e) {
             newMessageCheck.shutdownNow();
+            Thread.currentThread().interrupt();  // Восстановить статус прерывания
         }
-//        messageConsumer.close();
-        messageConsumer = null;
+    }
+
+    private void closeThreadChannels(){
+        isRunningChannels = false;
+        newChannelsCheck.shutdown(); // Остановить ExecutorService
+        try {
+            if (!newChannelsCheck.awaitTermination(5, TimeUnit.SECONDS)) {
+                newChannelsCheck.shutdownNow();  // Принудительная остановка, если поток не завершился
+            }
+        } catch (InterruptedException e) {
+            newChannelsCheck.shutdownNow();
+            Thread.currentThread().interrupt();  // Восстановить статус прерывания
+        }
+
     }
 
     private void createThreadInitializeConsumer(){
@@ -675,19 +723,11 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
 
     @PreDestroy
     private void destroyer(){
-        newChannelWriter.close();
-        if (channelConsumer != null){
-            newChannelsCheck.shutdown();
-            if (newChannelsCheck.isShutdown()){
-                channelConsumer.close();
-            }
-
+        if (newMessageCheck != null) {
+            closeThreadMessages();
         }
-        if (messageConsumer != null){
-            newMessageCheck.shutdown();
-            if (newMessageCheck.isShutdown()){
-                messageConsumer.close();
-            }
+        if (newChannelsCheck != null){
+            closeThreadChannels();
         }
     }
 }
