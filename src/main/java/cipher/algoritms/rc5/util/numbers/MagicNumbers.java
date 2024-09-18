@@ -1,4 +1,4 @@
-package cipher.algoritms.rc5.magic.numbers;
+package cipher.algoritms.rc5.util.numbers;
 
 
 public class MagicNumbers {

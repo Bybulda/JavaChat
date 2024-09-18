@@ -12,6 +12,8 @@ repositories {
 dependencies {
     // logging
     implementation 'ch.qos.logback:logback-classic:1.4.5'
+    // https://mvnrepository.com/artifact/org.javatuples/javatuples
+    implementation group: 'org.javatuples', name: 'javatuples', version: '1.2'
 
     // code generator
     compileOnly 'org.projectlombok:lombok:1.18.26'

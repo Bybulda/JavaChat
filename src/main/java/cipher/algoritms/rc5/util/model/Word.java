@@ -1,4 +1,4 @@
-package cipher.algoritms.rc5.model;
+package cipher.algoritms.rc5.util.model;
 
 import lombok.Builder;
 import lombok.Getter;

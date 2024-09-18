@@ -10,9 +10,7 @@ public class MacGuffinCipher implements ISymmCipher, IKeyExpansion {
 
     private char[][] keysRounds = new char[32][3];
 
-    public MacGuffinCipher(byte[] key) {
-        setKey(key);
-    }
+    public MacGuffinCipher() {}
 
     @Override
     public void setKey(byte[] key) {
@@ -126,7 +124,6 @@ public class MacGuffinCipher implements ISymmCipher, IKeyExpansion {
     public byte[] decryptBlock(byte[] block, char[][] key) {
         char[] words = bytesToChars(block);
         char left = words[3], a = words[0], b = words[1], c = words[2];
-//        char left = words[1], a = words[2], b = words[3], c = words[0];
         for (int i = 31; i >= 0; i--) {
             left = getLeftForRound(a, b, c, key, left, i);
             char tmp = left;

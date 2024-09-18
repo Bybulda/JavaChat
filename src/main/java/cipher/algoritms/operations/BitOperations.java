@@ -1,6 +1,6 @@
 package cipher.algoritms.operations;
 
-import cipher.algoritms.rc5.model.Word;
+import cipher.algoritms.rc5.util.model.Word;
 
 public class BitOperations {
     private BitOperations(){

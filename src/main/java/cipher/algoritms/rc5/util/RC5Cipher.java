@@ -1,7 +1,7 @@
-package cipher.algoritms.rc5;
+package cipher.algoritms.rc5.util;
 
-import cipher.algoritms.rc5.magic.numbers.MagicNumbers;
-import cipher.algoritms.rc5.model.Word;
+import cipher.algoritms.rc5.util.numbers.MagicNumbers;
+import cipher.algoritms.rc5.util.model.Word;
 import cipher.IKeyExpansion;
 import cipher.ISymmCipher;
 
@@ -30,11 +30,11 @@ public class RC5Cipher implements ISymmCipher, IKeyExpansion {
     @Override
     public byte[] encryptBlock(byte[] block) {
         Word<byte[]> initial = splitInHalf(block);
-        long left = addModulo(bytesToLong(initial.getWordA()), expandedKeyTable[0], wordSize);
-        long right = addModulo(bytesToLong(initial.getWordB()), expandedKeyTable[1], wordSize);
+        long left = addModulo(bytesToLong(initial.getWordA()), expandedKeyTable[0], wordSize / 2);
+        long right = addModulo(bytesToLong(initial.getWordB()), expandedKeyTable[1], wordSize / 2);
         for (int i = 1; i <= rounds; i++) {
-            left = addModulo(rotationLeft(left ^ right, right, wordSize), expandedKeyTable[2 * i], wordSize);
-            right = addModulo(rotationLeft(right ^ left, left, wordSize), expandedKeyTable[2 * i + 1], wordSize);
+            left = addModulo(rotationLeft(left ^ right, right, wordSize /2), expandedKeyTable[2 * i], wordSize / 2);
+            right = addModulo(rotationLeft(right ^ left, left, wordSize / 2), expandedKeyTable[2 * i + 1], wordSize / 2);
         }
         byte[] leftSide = longToBytes(left, wordSize);
         byte[] rightSide = longToBytes(right, wordSize);
@@ -47,11 +47,11 @@ public class RC5Cipher implements ISymmCipher, IKeyExpansion {
         long left = bytesToLong(initial.getWordA());
         long right = bytesToLong(initial.getWordB());
         for (int i = rounds; i > 0; i--) {
-            right = rotationRight(subModulo(right, expandedKeyTable[2 * i + 1], wordSize), left, wordSize) ^ left;
-            left = rotationRight(subModulo(left, expandedKeyTable[2 * i], wordSize), right, wordSize) ^ right;
+            right = rotationRight(subModulo(right, expandedKeyTable[2 * i + 1], wordSize / 2), left, wordSize / 2) ^ left;
+            left = rotationRight(subModulo(left, expandedKeyTable[2 * i], wordSize / 2), right, wordSize / 2) ^ right;
         }
-        byte[] leftSide = longToBytes(subModulo(left, expandedKeyTable[0], wordSize), wordSize);
-        byte[] rightSide = longToBytes(subModulo(right, expandedKeyTable[1], wordSize), wordSize);
+        byte[] leftSide = longToBytes(subModulo(left, expandedKeyTable[0], wordSize / 2), wordSize);
+        byte[] rightSide = longToBytes(subModulo(right, expandedKeyTable[1], wordSize / 2), wordSize);
         return mergePart(leftSide, rightSide);
     }
 
@@ -73,7 +73,7 @@ public class RC5Cipher implements ISymmCipher, IKeyExpansion {
         }
         for (left = right = i = j = k = 0; k < 3 * tSize; k++, i = (i + 1) % tSize, j = (j + 1) % wordsInKey) {
             left = (int) (expandedKeyTable[i] = rotationLeft(expandedKeyTable[i] + left + right, 3, wordSize));
-            right = low[j] = (int) rotationLeft(low[j] + left + right, left + right, wordSize);
+            right = low[j] = (int) rotationLeft(addModulo(addModulo(low[j], left, wordSize), right, wordSize), addModulo(left, right, wordSize), wordSize);
         }
 
     }
