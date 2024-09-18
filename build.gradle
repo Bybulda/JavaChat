@@ -49,6 +49,9 @@ dependencies {
     // Kafka
     implementation 'org.apache.kafka:kafka-clients:3.4.0'
 
+    // tuples
+    implementation group: 'org.javatuples', name: 'javatuples', version: '1.2'
+
     // Apache Commons
     implementation 'org.apache.commons:commons-lang3:3.0'
     implementation 'commons-io:commons-io:2.16.1'
