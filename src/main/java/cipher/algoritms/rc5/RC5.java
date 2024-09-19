@@ -1,14 +1,17 @@
 package cipher.algoritms.rc5;
+import cipher.IKeyExpansion;
+import cipher.ISymmCipher;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class RC5 {
+public class RC5 implements ISymmCipher, IKeyExpansion {
     private final int inputBlockSizeInBits;
+    private final int keyBlockSizeInBits;
     private final int countRounds;
-    private final long[] roundKeys;
-    private final RC5service service;
+    private long[] roundKeys;
+    private RC5service service;
 
-    public RC5(int inputBlockSizeInBits, int countRounds, int lenKeyInBits, byte[] key) {
+    public RC5(int inputBlockSizeInBits, int countRounds, int lenKeyInBits) {
         if (!(inputBlockSizeInBits == 32 || inputBlockSizeInBits == 64 ||inputBlockSizeInBits == 128)) {
             throw new IllegalArgumentException("Error size block in bits!");
         }
@@ -23,10 +26,10 @@ public class RC5 {
 
         this.inputBlockSizeInBits = inputBlockSizeInBits;
         this.countRounds = countRounds;
-        this.service = new RC5service(inputBlockSizeInBits, lenKeyInBits, countRounds);
-        this.roundKeys = service.expandKey(key);
+        this.keyBlockSizeInBits = lenKeyInBits;
     }
 
+    @Override
     public byte[] encryptBlock(byte[] inputBlock) {
         long A = service.getLongFromHalfBlock(inputBlock, 0, inputBlock.length / 2);
         long B = service.getLongFromHalfBlock(inputBlock, inputBlock.length / 2, inputBlock.length);
@@ -41,7 +44,7 @@ public class RC5 {
 
         return service.TwoLongPartToByteArray(A, B, inputBlock.length);
     }
-
+    @Override
     public byte[] decryptBlock(byte[] inputBlock) {
         long B = service.getLongFromHalfBlock(inputBlock, inputBlock.length / 2, inputBlock.length);
         long A = service.getLongFromHalfBlock(inputBlock, 0, inputBlock.length / 2);
@@ -55,5 +58,11 @@ public class RC5 {
         A = BinaryOperations.subtractModule(A, roundKeys[0], inputBlockSizeInBits / 2);
 
         return service.TwoLongPartToByteArray(A, B, inputBlock.length);
+    }
+
+    @Override
+    public void setKey(byte[] key) {
+        this.service = new RC5service(inputBlockSizeInBits, keyBlockSizeInBits, countRounds);
+        this.roundKeys = service.expandKey(key);
     }
 }

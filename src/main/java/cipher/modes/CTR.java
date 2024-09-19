@@ -65,7 +65,7 @@ public class CTR implements ICipherMode {
                     byte[] block = Arrays.copyOfRange(cipheredText, idx, idx + blockSize);
                     byte[] toDecrypt = new byte[blockSize];
                     System.arraycopy(IV, 0, toDecrypt, 0, length);
-                    //Todo: int to nyte array
+                    // TODO: int not long
                     System.arraycopy(BitOperations.longToBytes(i, 4), 0, toDecrypt, toDecrypt.length - Integer.BYTES, length);
                     byte[] decryptedBlock = BitOperations.byteArrayXOR(block, cipherFunction.apply(toDecrypt));
                     System.arraycopy(decryptedBlock, 0, result, idx, decryptedBlock.length);

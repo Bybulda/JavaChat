@@ -21,4 +21,13 @@ public class DiffieHellman {
 
     }
 
+    public static byte[] getIV(int sizeBytes){
+        byte[] iv = new byte[sizeBytes];
+        RANDOM.nextBytes(iv);
+        return iv;
+    }
+
+    public static BigInteger generateRandomWord(){
+        return BigInteger.valueOf(RANDOM.nextInt(100));
+    }
 }

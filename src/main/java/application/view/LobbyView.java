@@ -17,6 +17,9 @@ import application.backend.service.MessagesMenageService;
 import application.backend.service.RoomsManageService;
 import application.backend.service.UserRegistrationService;
 import application.view.extenders.NotificationHolder;
+import cipher.ICipherService;
+import cipher.algoritms.CipherService;
+import cipher.diffie_hellman.DiffieHellman;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
@@ -36,10 +39,7 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
-import com.vaadin.flow.router.BeforeEnterEvent;
-import com.vaadin.flow.router.BeforeEnterObserver;
-import com.vaadin.flow.router.PageTitle;
-import com.vaadin.flow.router.Route;
+import com.vaadin.flow.router.*;
 import com.vaadin.flow.server.StreamResource;
 import jakarta.annotation.PreDestroy;
 import org.apache.kafka.clients.admin.AdminClient;
@@ -58,13 +58,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -72,7 +70,7 @@ import java.util.concurrent.TimeUnit;
 @Route("lobby/:id/:name")
 @PageTitle("Lobby")
 @CssImport("./styles/styles.css")
-public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, NotificationHolder {
+public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, NotificationHolder, BeforeLeaveObserver {
     private static final Logger log = LoggerFactory.getLogger(LobbyView.class);
     // Services
     @Autowired
@@ -113,6 +111,10 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
     private ExecutorService newMessageCheck;
     private volatile boolean isRunningMessages = false;
     private volatile boolean isRunningChannels = false;
+
+    // cipher
+    private ICipherService cipherService = new CipherService();
+    private BigInteger currentWord = null;
     // endregion
 
     public LobbyView() {
@@ -160,6 +162,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                     cipherManageService.deleteCipherInfo(person.getCipherInfoId());
                     messagesMenageService.deleteAllMessagesByChatId(person.getId());
                     roomsManageService.deleteRoom(person.getId());
+
                     long otherUser = id == person.getLeftUser() ? person.getRightUser() : person.getLeftUser();
                     JsonAction action = JsonAction.builder().senderId(id).status("delete-channel").chatId(person.getId()).chatName(person.getTitleLeft()).build();
                     try {
@@ -189,7 +192,11 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                     }
                 }
                 currentRoom = channel;
-                JsonMessage message = JsonMessage.builder().messageType("connected").senderId(id).chatId(currentRoom.getId()).build();
+                currentWord = DiffieHellman.generateRandomWord();
+                BigInteger g = new BigInteger(currentRoom.getG());
+                BigInteger p = new BigInteger(currentRoom.getP());
+                BigInteger secretParam = g.modPow(currentWord, p);
+                JsonMessage message = JsonMessage.builder().messageType("connected").senderId(id).chatId(currentRoom.getId()).keyWord(secretParam.toByteArray()).build();
                 try {
                     newChannelWriter.processMessage(messageMapper.processJsonMessage(message), String.format("chatMessages-%s", currentRoom.getId()));
                     createThreadInitializeConsumer();
@@ -236,7 +243,11 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         fileButton.setDisableOnClick(true);
         sendButton.addClickListener(action -> {
             sendButton.setEnabled(true);
-            if (currentRoom == null ) {
+            if(message.getValue().isEmpty()){
+                openErrorNotification("Message field can not be empty!");
+                return;
+            }
+            if (currentRoom == null) {
                 openErrorNotification("Please select a room");
                 return;
             }
@@ -346,15 +357,18 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
             } else {
                 if (userRegistrationService.checkUserByUSerName(buddyName)) {
                     UserInfo buddy = userRegistrationService.getUserInfoByUsername(buddyName);
-                    byte[] iv = new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+                    byte[] iv = DiffieHellman.getIV(8);
                     CipherInfo info = CipherInfo.builder().mode(chatMode).algorithm(chatCipher).padding(chatPadding)
-                            .blockSizeBits(128).keySizeBits(96).iv(iv).build();
+                            .blockSizeBits(64).keySizeBits(128).iv(iv).build();
                     CipherInfo newInfo = cipherManageService.saveCipherInfo(info);
-                    JsonAction action = JsonAction.builder().chatName(channel).cipher(newInfo).status("new-channel").senderId(id).g(new byte[]{1}).p(new byte[]{1}).aOrB(new byte[]{1}).build();
+                    BigInteger[] pg = DiffieHellman.generateDiffieHellman(128);
+                    byte[] p = pg[0].toByteArray();
+                    byte[] g = pg[1].toByteArray();
+                    JsonAction action = JsonAction.builder().chatName(channel).cipher(newInfo).status("new-channel").senderId(id).g(g).p(p).aOrB(new byte[]{1}).build();
                     try {
                         newChannelWriter.processMessage(actionMapper.processStringAction(action), String.format("chatlistner.%s", buddy.getId()));
                     } catch (JsonProcessingException e) {
-                        throw new RuntimeException(e);
+                        log.error(e.getMessage());
                     }
                     dialog.close();
                 } else {
@@ -404,6 +418,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                 .senderId(id).chatId(currentRoom.getId()).componentId(0).timestamp(LocalDateTime.now()).build();
         newMessage = messagesMenageService.saveMessage(newMessage);
         JsonMessage kafkaMsg = makeJsonMessage(newMessage);
+        kafkaMsg.setMessage(cipherService.encrypt(kafkaMsg.getMessage()));
         addMessage(newMessage, userName);
         newChannelWriter.processMessage(messageMapper.processJsonMessage(kafkaMsg), String.format("chatMessages-%s", newMessage.getChatId()));
 
@@ -415,6 +430,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                 .componentId(0).senderId(id).chatId(currentRoom.getId()).build();
         newMessage = messagesMenageService.saveMessage(newMessage);
         JsonMessage kafkaMsg = makeJsonMessage(newMessage);
+        kafkaMsg.setMessage(cipherService.encrypt(kafkaMsg.getMessage()));
         addMessage(newMessage, userName);
         newChannelWriter.processMessage(messageMapper.processJsonMessage(kafkaMsg), String.format("chatMessages-%s", newMessage.getChatId()));
     }
@@ -425,6 +441,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                 .senderId(id).componentId(0).timestamp(LocalDateTime.now()).build();
         fileMessage = messagesMenageService.saveMessage(fileMessage);
         JsonMessage kafkaMsg = makeJsonMessage(fileMessage);
+        kafkaMsg.setMessage(cipherService.encrypt(kafkaMsg.getMessage()));
         addMessage(fileMessage, userName);
         newChannelWriter.processMessage(messageMapper.processJsonMessage(kafkaMsg), String.format("chatMessages-%s", fileMessage.getChatId()));
     }
@@ -489,13 +506,18 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
     // region utils
     @Override
     public void beforeEnter(BeforeEnterEvent beforeEnterEvent) {
-        id = Long.parseLong(beforeEnterEvent.getRouteParameters().get("id").orElse(""));
+        id = Long.parseLong(beforeEnterEvent.getRouteParameters().get("id").orElse("-1"));
         userName = beforeEnterEvent.getRouteParameters().get("name").orElse("");
-        header.setText(String.format("Welcome to chat, %s!", userName));
-        createTopic(String.format("chatlistner.%s", id), 1, (short) 1);
-        initializeChannelConsumer();
-        processChatRequests();
-        refreshChannels();
+        UserInfo registered = userRegistrationService.getUserInfoById(id);
+        if(id == -1 || userName.isEmpty() || registered == null || !registered.getUserName().equals(userName)) {
+            beforeEnterEvent.rerouteTo(ErrorView.class);
+        } else {
+            header.setText(String.format("Welcome to chat, %s!", userName));
+            createTopic(String.format("chatlistner.%s", id), 1, (short) 1);
+            initializeChannelConsumer();
+            processChatRequests();
+            refreshChannels();
+        }
     }
 
     private byte[] toByteArray(InputStream inputStream) throws IOException {
@@ -630,6 +652,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
             try {
                 JsonMessageParser mapper = new JsonMessageParserImpl();
                 isRunningMessages = true;
+                ICipherService service = new CipherService();
                 while (isRunningMessages) {
                     ConsumerRecords<String, String> records = messageConsumer.poll(100);
                     for (ConsumerRecord<String, String> record : records) {
@@ -649,7 +672,21 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                                     break;
                                 case "connected":
                                     if (currentUIChannel != null){
-                                        currentUIMessages.access(() -> isPersonDisconnected = false);
+                                        BigInteger otherKeyWord = new BigInteger(message.getKeyWord());
+                                        BigInteger p = new BigInteger(currentRoom.getP());
+                                        byte[] key = otherKeyWord.modPow(currentWord, p).toByteArray();
+                                        log.info("Created key {}", new BigInteger(key));
+                                        CipherInfo cipherInfo = cipherManageService.getCipherInfo(currentRoom.getCipherInfoId());
+                                        service.setCipherSettings(cipherInfo.getPadding(), cipherInfo.getMode(),
+                                                cipherInfo.getAlgorithm(), cipherInfo.getBlockSizeBits(), cipherInfo.getKeySizeBits(), 32, cipherInfo.getIv());
+                                        service.setCipherKey(key);
+                                        currentUIMessages.access(() -> {
+                                                    isPersonDisconnected = false;
+                                                    cipherService.setCipherSettings(cipherInfo.getPadding(), cipherInfo.getMode(),
+                                                            cipherInfo.getAlgorithm(), cipherInfo.getBlockSizeBits(), cipherInfo.getKeySizeBits(), 32, cipherInfo.getIv());
+                                                    cipherService.setCipherKey(key);
+                                                }
+                                        );
                                     }
                                     break;
                                 case "delete":
@@ -664,6 +701,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                                     break;
                                 default:
                                     if (currentUIChannel != null){
+                                        message.setMessage(service.decrypt(message.getMessage()));
                                         MessagesInfo msg = getMessageFromJsonMessage(message);
                                         currentUIMessages.access(() -> addMessage(msg, userRegistrationService.getUserInfoById(msg.getSenderId()).getUserName()));
                                     }
@@ -731,13 +769,28 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                 .senderId(message.getSenderId()).chatId(message.getId()).componentId(0).build();
     }
 
-    @PreDestroy
-    private void destroyer(){
-        if (newMessageCheck != null) {
-            closeThreadMessages();
-        }
-        if (newChannelsCheck != null){
+//    @PreDestroy
+//    private void destroyer(){
+//        if (newMessageCheck != null) {
+//            closeThreadMessages();
+//        }
+//        closeThreadChannels();
+//    }
+
+    @Override
+    public void beforeLeave(BeforeLeaveEvent beforeLeaveEvent) {
+        JsonMessage message = JsonMessage.builder().messageType("disconnect").id(id).chatId(currentRoom.getId()).build();
+        try {
+            newChannelWriter.processMessage(messageMapper.processJsonMessage(message), String.format("chatListner-%d", currentRoom.getId()));
+        } catch (JsonProcessingException e) {
+            log.error(e.getMessage(), e);
+        }finally {
+            if (newMessageCheck != null) {
+                closeThreadMessages();
+            }
             closeThreadChannels();
+            newChannelWriter.close();
         }
+
     }
 }

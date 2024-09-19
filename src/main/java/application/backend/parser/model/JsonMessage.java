@@ -19,4 +19,5 @@ public class JsonMessage {
     private String messageType;
     private byte[] message;
     private LocalDateTime timestamp;
+    private byte[] keyWord;
 }

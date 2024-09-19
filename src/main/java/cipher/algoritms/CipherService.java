@@ -2,6 +2,7 @@ package cipher.algoritms;
 
 import cipher.*;
 import cipher.algoritms.macguffin.MacGuffinCipher;
+import cipher.algoritms.rc5.RC5;
 import cipher.algoritms.rc5.util.RC5Cipher;
 import cipher.modes.*;
 import cipher.padding.ANSIX923;
@@ -33,7 +34,6 @@ public class CipherService implements ICipherService {
         cipher = getSymmCipher(ciphers, blockSizeBits, keySizeBits, rounds);
         padding = getPadding(paddings);
         cipherMode = getCipherMode(cipherModes);
-
     }
 
     @Override
@@ -45,7 +45,7 @@ public class CipherService implements ICipherService {
         if (ciphers.equals("MACGUFFIN")) {
             return new MacGuffinCipher();
         }
-        return new RC5Cipher(new byte[]{});
+        return new RC5(blockSizeBits, rounds, keySizeBits);
     }
 
     private IPadding getPadding(String paddings){
@@ -74,7 +74,7 @@ public class CipherService implements ICipherService {
     @Override
     public byte[] encrypt(byte[] data) {
         byte[] paddedData = padding.makeWithPadding(data, blockSizeBits / 8);
-        return cipherMode.decryptWithMode(paddedData, IV, List.of(""), cipher, blockSizeBits / 8);
+        return cipherMode.encryptWithMode(paddedData, IV, List.of(""), cipher, blockSizeBits / 8);
     }
 
     @Override
