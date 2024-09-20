@@ -20,5 +20,4 @@ public class JsonAction {
     private String status;
     private byte[] p;
     private byte[] g;
-    private byte[] aOrB;
 }

@@ -87,6 +87,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
     private long id;
     private String userName;
     private volatile boolean isPersonDisconnected = true;
+    private volatile boolean connectedMessageSent = false;
 
     private final UI currentUIChannel = UI.getCurrent();
     private final UI currentUIMessages = UI.getCurrent();
@@ -199,6 +200,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                 JsonMessage message = JsonMessage.builder().messageType("connected").senderId(id).chatId(currentRoom.getId()).keyWord(secretParam.toByteArray()).build();
                 try {
                     newChannelWriter.processMessage(messageMapper.processJsonMessage(message), String.format("chatMessages-%s", currentRoom.getId()));
+                    connectedMessageSent = true;
                     createThreadInitializeConsumer();
                     processMessages();
                 } catch (JsonProcessingException e) {
@@ -239,6 +241,8 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         sendButton.setTooltipText("Send message");
         Button fileButton = new Button(new Icon(VaadinIcon.FILE));
         fileButton.setTooltipText("Send file");
+        Button leaveChannelButton = new Button(new Icon(VaadinIcon.EXIT));
+        leaveChannelButton.setTooltipText("Leave channel");
         sendButton.setDisableOnClick(true);
         fileButton.setDisableOnClick(true);
         sendButton.addClickListener(action -> {
@@ -275,7 +279,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
             }
             MemoryBuffer buffer = new MemoryBuffer();
             Upload upload = new Upload(buffer);
-            upload.setMaxFileSize(1048576);
+            upload.setMaxFileSize(104857600);
             upload.setMaxFiles(1);
             Dialog dialog = new Dialog();
             dialog.add(new H3("Upload your file"), upload);
@@ -304,10 +308,29 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
 
         });
 
+        leaveChannelButton.addClickListener(action -> {
+            if(currentRoom == null){
+                openErrorNotification("You dont have a room to leave!");
+                return;
+            }
+            JsonMessage messageJson = JsonMessage.builder().senderId(id).messageType("disconnected").chatId(currentRoom.getId()).build();
+            try {
+                newChannelWriter.processMessage(messageMapper.processJsonMessage(messageJson), String.format("chatMessages-%d", currentRoom.getId()));
+            } catch (JsonProcessingException e) {
+                log.error(e.getMessage());
+            }
+            isPersonDisconnected = true;
+            connectedMessageSent = false;
+            currentRoom = null;
+            closeThreadMessages();
+            chatPlace.removeAll();
+            Notification.show("Leaving channel",3000, Notification.Position.BOTTOM_END);
+        });
+
         HorizontalLayout fieldsButtonsLayout = new HorizontalLayout();
         fieldsButtonsLayout.setWidthFull();
         fieldsButtonsLayout.setAlignItems(Alignment.END);
-        fieldsButtonsLayout.add(message, fileButton, sendButton);
+        fieldsButtonsLayout.add(leaveChannelButton, message, fileButton, sendButton);
         fieldsButtonsLayout.expand(message);
         return fieldsButtonsLayout;
     }
@@ -355,6 +378,10 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
             if (chatMode == null || buddyName == null || chatCipher == null || chatPadding == null) {
                 openErrorNotification("All fields must be filled!");
             } else {
+                if(buddyName.equals(userName)){
+                    openErrorNotification("You cant message yourself!");
+                    return;
+                }
                 if (userRegistrationService.checkUserByUSerName(buddyName)) {
                     UserInfo buddy = userRegistrationService.getUserInfoByUsername(buddyName);
                     byte[] iv = DiffieHellman.getIV(8);
@@ -364,7 +391,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                     BigInteger[] pg = DiffieHellman.generateDiffieHellman(128);
                     byte[] p = pg[0].toByteArray();
                     byte[] g = pg[1].toByteArray();
-                    JsonAction action = JsonAction.builder().chatName(channel).cipher(newInfo).status("new-channel").senderId(id).g(g).p(p).aOrB(new byte[]{1}).build();
+                    JsonAction action = JsonAction.builder().chatName(channel).cipher(newInfo).status("new-channel").senderId(id).g(g).p(p).build();
                     try {
                         newChannelWriter.processMessage(actionMapper.processStringAction(action), String.format("chatlistner.%s", buddy.getId()));
                     } catch (JsonProcessingException e) {
@@ -537,7 +564,7 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9093");
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-        props.put(ConsumerConfig.FETCH_MAX_BYTES_CONFIG, "2097152");
+        props.put(ConsumerConfig.FETCH_MAX_BYTES_CONFIG, "104857600");
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
@@ -666,12 +693,28 @@ public class LobbyView extends HorizontalLayout implements BeforeEnterObserver, 
                             switch (message.getMessageType()){
                                 case "disconnected":
                                     if (currentUIChannel != null) {
-                                        currentUIMessages.access(() -> isPersonDisconnected = true);
+                                        currentUIMessages.access(() -> {
+                                            isPersonDisconnected = true;
+                                            connectedMessageSent = false;
+                                        });
                                     }
 
                                     break;
                                 case "connected":
                                     if (currentUIChannel != null){
+                                        if (!connectedMessageSent){
+                                            currentWord = DiffieHellman.generateRandomWord();
+                                            BigInteger g = new BigInteger(currentRoom.getG());
+                                            BigInteger p = new BigInteger(currentRoom.getP());
+                                            BigInteger secretParam = g.modPow(currentWord, p);
+                                            JsonMessage mess = JsonMessage.builder().messageType("connected").senderId(id).chatId(currentRoom.getId()).keyWord(secretParam.toByteArray()).build();
+                                            try {
+                                                newChannelWriter.processMessage(messageMapper.processJsonMessage(mess), String.format("chatMessages-%s", currentRoom.getId()));
+                                                connectedMessageSent = true;
+                                            } catch (Exception e) {
+                                                log.error(e.getMessage(), e);
+                                            }
+                                        }
                                         BigInteger otherKeyWord = new BigInteger(message.getKeyWord());
                                         BigInteger p = new BigInteger(currentRoom.getP());
                                         byte[] key = otherKeyWord.modPow(currentWord, p).toByteArray();
