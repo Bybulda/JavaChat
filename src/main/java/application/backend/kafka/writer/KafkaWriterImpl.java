@@ -22,7 +22,7 @@ public class KafkaWriterImpl implements KafkaWriter, ConfigLoader {
         Config config = ConfigLoader.load();
         Properties props = new Properties();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, config.getString("kafka.bootstrap.Servers"));
-        props.put(ProducerConfig.MAX_REQUEST_SIZE_CONFIG, "104857600");
+        props.put(ProducerConfig.MAX_REQUEST_SIZE_CONFIG, "26214400");
         props.put("auto.create.topics.enable", "true");
         producer = new KafkaProducer<>(props, new StringSerializer(), new StringSerializer());
     }

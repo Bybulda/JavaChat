@@ -3,12 +3,12 @@ package cipher.algoritms;
 import cipher.*;
 import cipher.algoritms.macguffin.MacGuffinCipher;
 import cipher.algoritms.rc5.RC5;
-import cipher.algoritms.rc5.util.RC5Cipher;
 import cipher.modes.*;
 import cipher.padding.ANSIX923;
 import cipher.padding.ISO10126;
 import cipher.padding.PKCS7;
 import cipher.padding.ZerosPadding;
+import lombok.Getter;
 import lombok.Setter;
 
 import java.util.List;
@@ -22,6 +22,7 @@ public class CipherService implements ICipherService {
     private int rounds;
     private int blockSizeBits;
     private int keySizeBits;
+    private byte[] key;
 
     public CipherService(){}
 
@@ -38,7 +39,13 @@ public class CipherService implements ICipherService {
 
     @Override
     public void setCipherKey(byte[] key) {
+        this.key = key;
         ((IKeyExpansion)cipher).setKey(key);
+    }
+
+    @Override
+    public byte[] getCipherKey() {
+        return key;
     }
 
     private ISymmCipher getSymmCipher(String ciphers, int blockSizeBits, int keySizeBits, int rounds){
