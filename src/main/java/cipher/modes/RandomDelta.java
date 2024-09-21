@@ -41,7 +41,9 @@ public class RandomDelta implements ICipherMode {
                 .parallel()
                 .forEach(i -> {
                     int idx = i * blockSize;
-                    byte[] block = Arrays.copyOfRange(cipheredText, idx, idx + blockSize);
+                    byte[] block = new byte[blockSize];
+                    System.arraycopy(cipheredText, idx, block, 0, block.length);
+//                            Arrays.copyOfRange(cipheredText, idx, idx + blockSize);
                     BigInteger initialDelta = initial.add(delta.multiply(BigInteger.valueOf(i)));
                     byte[] decryptedBlock = BitOperations.byteArrayXOR(algorithm.decryptBlock(block), initialDelta.toByteArray());
                     System.arraycopy(decryptedBlock, 0, result, idx, decryptedBlock.length);
@@ -60,7 +62,8 @@ public class RandomDelta implements ICipherMode {
                 .parallel()
                 .forEach(i -> {
                     int idx = i * blockSize;
-                    byte[] block = Arrays.copyOfRange(cipheredText, idx, idx + blockSize);
+                    byte[] block = new byte[blockSize];
+                    System.arraycopy(cipheredText, idx, block, 0, block.length);
                     BigInteger initialDelta = initial.add(delta.multiply(BigInteger.valueOf(i)));
                     byte[] decryptedBlock = BitOperations.byteArrayXOR(cipherFunction.apply(block), initialDelta.toByteArray());
                     System.arraycopy(decryptedBlock, 0, result, idx, decryptedBlock.length);

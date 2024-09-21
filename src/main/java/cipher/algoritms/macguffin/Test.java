@@ -40,7 +40,7 @@ public class Test {
         ICipherService service = new CipherService();
         // OFB + Zeros works + PKCS7 + ISO + ANSIX923 + CFB + ECB + PCBC + CTR
         // doesnt work: cbc RandomDelta(possible to improve)
-        service.setCipherSettings("Zeros", "CBC", "MACGUFFIN", 64, 128, 32, new byte[]{1, 2, 3, 4, 5, 6, 7, 8});
+        service.setCipherSettings("Zeros", "RANDOMDELTA", "MACGUFFIN", 64, 128, 32, new byte[]{1, 2, 3, 4, 5, 6, 7, 8});
         byte[] key = "1234567876543210".getBytes();
         service.setCipherKey(key);
         byte[] ciphertext = service.encrypt(word);
