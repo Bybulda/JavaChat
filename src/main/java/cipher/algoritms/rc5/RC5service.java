@@ -88,7 +88,7 @@ public class RC5service {
         return BinaryOperations.bytesToLong(result);
     }
 
-    public byte[] TwoLongPartToByteArray(long left, long right, int sizeResult) {
+    public byte[] twoLongPartToByteArray(long left, long right, int sizeResult) {
         byte[] leftResult = new byte[sizeResult / 2];
         byte[] rightResult = new byte[sizeResult / 2];
 

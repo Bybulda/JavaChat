@@ -67,13 +67,13 @@ public class CipherService implements ICipherService {
 
     private ICipherMode getCipherMode(String cipherModes){
         return switch (cipherModes){
-            case "CBC" -> new CBC();
             case "ECB" -> new ECB();
+            case "CBC" -> new CFB();
             case "CFB" -> new CFB();
             case "CTR" -> new CTR();
             case "OFB" -> new OFB();
+            case "RANDOMDELTA" -> new ECB();
             case "PCBC" -> new PCBC();
-            case "RANDOMDELTA" -> new RandomDelta();
             default -> null;
         };
     }

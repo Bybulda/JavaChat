@@ -42,7 +42,7 @@ public class RC5 implements ISymmCipher, IKeyExpansion {
             B = BinaryOperations.sumModule(BinaryOperations.leftCycleShift((A^B), inputBlockSizeInBits / 2, A), roundKeys[2*i + 1], inputBlockSizeInBits / 2);
         }
 
-        return service.TwoLongPartToByteArray(A, B, inputBlock.length);
+        return service.twoLongPartToByteArray(A, B, inputBlock.length);
     }
     @Override
     public byte[] decryptBlock(byte[] inputBlock) {
@@ -57,7 +57,7 @@ public class RC5 implements ISymmCipher, IKeyExpansion {
         B = BinaryOperations.subtractModule(B, roundKeys[1], inputBlockSizeInBits / 2);
         A = BinaryOperations.subtractModule(A, roundKeys[0], inputBlockSizeInBits / 2);
 
-        return service.TwoLongPartToByteArray(A, B, inputBlock.length);
+        return service.twoLongPartToByteArray(A, B, inputBlock.length);
     }
 
     @Override

@@ -26,16 +26,26 @@ public class BitOperations {
         return xorArray;
     }
 
-    public static byte[] xor(byte[] first, byte[] second) {
-        int maxLength = Integer.max(first.length, second.length);
-        byte[] result = new byte[maxLength];
+//    public static byte[] xor(byte[] first, byte[] second) {
+//        int maxLength = Integer.max(first.length, second.length);
+//        byte[] result = new byte[maxLength];
+//
+//        for (int i = 0; i < maxLength; i++) {
+//            byte firstByte = first.length - i - 1 >= 0 ? first[first.length - i - 1] : 0;
+//            byte secondByte = second.length - i - 1 >= 0 ? second[second.length - i - 1] : 0;
+//            result[maxLength - i - 1] = (byte) (firstByte ^ secondByte);
+//        }
+//
+//        return result;
+//    }
 
-        for (int i = 0; i < maxLength; i++) {
-            byte firstByte = first.length - i - 1 >= 0 ? first[first.length - i - 1] : 0;
-            byte secondByte = second.length - i - 1 >= 0 ? second[second.length - i - 1] : 0;
-            result[maxLength - i - 1] = (byte) (firstByte ^ secondByte);
+    public static byte[] xor(byte[] x, byte[] y) {
+        var size = Math.min(x.length, y.length);
+
+        var result = new byte[size];
+        for (int i = 0; i < size; i++) {
+            result[i] = (byte) (x[i] ^ y[i]);
         }
-
         return result;
     }
 
