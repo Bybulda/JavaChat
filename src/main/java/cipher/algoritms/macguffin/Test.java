@@ -36,12 +36,11 @@ public class Test {
 //        System.out.println(Arrays.toString(encrypted));
 //        byte[] decrypted = cipher.decryptBlock(encrypted);
 //        System.out.println(Arrays.toString(decrypted));
-        byte[] word = "Hello World".getBytes();
+        byte[] word = "Hello NIGGGAGAGAGGAGAGA".getBytes();
         ICipherService service = new CipherService();
-        // OFB + Zeros works + PKCS7 + ISO + ANSIX923 + CFB + ECB
-        // doesnt work: cbc pcbc RandomDelta(possible to improve)
-        // not consist: CTR(possible)
-        service.setCipherSettings("ANSIX923", "OFB", "RC5", 64, 128, 32, new byte[]{1, 2, 3, 4, 5, 6, 7, 8});
+        // OFB + Zeros works + PKCS7 + ISO + ANSIX923 + CFB + ECB + PCBC + CTR
+        // doesnt work: cbc RandomDelta(possible to improve)
+        service.setCipherSettings("Zeros", "OFB", "MACGUFFIN", 64, 128, 32, new byte[]{1, 2, 3, 4, 5, 6, 7, 8});
         byte[] key = "1234567876543210".getBytes();
         service.setCipherKey(key);
         byte[] ciphertext = service.encrypt(word);

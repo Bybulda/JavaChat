@@ -17,9 +17,9 @@ public class PCBC implements ICipherMode {
         for (int i = 0; i < blocksCount; i++) {
             int idx = i * blockSize;
             byte[] block = Arrays.copyOfRange(text, idx, idx + blockSize);
-            byte[] encryptedBlock = algorithm.encryptBlock(BitOperations.byteArrayXOR(prevBlock, block));
+            byte[] encryptedBlock = algorithm.encryptBlock(BitOperations.byteArrayXOR(block, prevBlock));
             System.arraycopy(encryptedBlock, 0, result, idx, encryptedBlock.length);
-            prevBlock = BitOperations.byteArrayXOR(block, encryptedBlock);
+            prevBlock = BitOperations.byteArrayXOR(encryptedBlock, block);
         }
 
         return result;
@@ -36,7 +36,7 @@ public class PCBC implements ICipherMode {
             byte[] block = Arrays.copyOfRange(cipheredText, idx, idx + blockSize);
             byte[] decryptedBlock = BitOperations.byteArrayXOR(algorithm.decryptBlock(block), prevBlock);
             System.arraycopy(decryptedBlock, 0, result, idx, decryptedBlock.length);
-            prevBlock =BitOperations.byteArrayXOR(block, decryptedBlock);
+            prevBlock =BitOperations.byteArrayXOR(decryptedBlock, block);
         }
 
         return result;

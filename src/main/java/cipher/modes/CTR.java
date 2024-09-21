@@ -3,6 +3,7 @@ package cipher.modes;
 import cipher.ICipherMode;
 import cipher.ISymmCipher;
 import cipher.algoritms.operations.BitOperations;
+import cipher.algoritms.rc5.BinaryOperations;
 
 import javax.crypto.Cipher;
 import java.util.Arrays;
@@ -51,7 +52,7 @@ public class CTR implements ICipherMode {
 //                    System.arraycopy(decryptedBlock, 0, result, idx, decryptedBlock.length);
 //                });
 
-        return handler(cipheredText, IV, parameters, algorithm::decryptBlock, blockSize);
+        return handler(cipheredText, IV, parameters, algorithm::encryptBlock, blockSize);
     }
 
     private byte[] handler(byte[] cipheredText, byte[] IV, List<String> parameters, UnaryOperator<byte[]> cipherFunction, int blockSize){
@@ -65,8 +66,12 @@ public class CTR implements ICipherMode {
                     byte[] block = Arrays.copyOfRange(cipheredText, idx, idx + blockSize);
                     byte[] toDecrypt = new byte[blockSize];
                     System.arraycopy(IV, 0, toDecrypt, 0, length);
-                    // TODO: int not long
-                    System.arraycopy(BitOperations.longToBytes(i, 4), 0, toDecrypt, toDecrypt.length - Integer.BYTES, length);
+                    byte[] counter = new byte[length];
+                    for (int j = 0; j < length; j++) {
+                        counter[j] = (byte) (i >> ((length - 1) - j) * 8);
+                    }
+
+                    System.arraycopy(counter, 0, toDecrypt, length, length);
                     byte[] decryptedBlock = BitOperations.byteArrayXOR(block, cipherFunction.apply(toDecrypt));
                     System.arraycopy(decryptedBlock, 0, result, idx, decryptedBlock.length);
                 });
